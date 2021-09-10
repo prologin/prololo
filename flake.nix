@@ -1,22 +1,28 @@
 {
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
+    rust-overlay.url = "github:oxalica/rust-overlay";
+    naersk.url = "github:nix-community/naersk";
     flake-utils.url = "github:numtide/flake-utils";
   };
 
-  outputs = { self, nixpkgs, flake-utils, ... }:
+  outputs = { self, nixpkgs, rust-overlay, naersk, flake-utils, ... }:
     flake-utils.lib.eachDefaultSystem (system:
       let
-        pkgs = import nixpkgs { inherit system; };
+        overlays = [ (import rust-overlay) ];
+        pkgs = import nixpkgs { inherit system overlays; };
+        myRust = pkgs.rust-bin.stable.latest.default;
+        naersk-lib = naersk.lib."${system}".override {
+          cargo = myRust;
+          rustc = myRust;
+        };
       in
         {
-          defaultPackage = pkgs.rustPlatform.buildRustPackage {
+          defaultPackage = naersk-lib.buildPackage {
             pname = "prololo-reborn";
             version = "0.1.0";
 
             src = self;
-
-            cargoSha256 = "sha256-dM3lNanFcm/9QggXgQ6MTjPxF57fxeKfR0lSXGv9bVY=";
 
             meta = with pkgs.lib; {
               homepage = "https://github.com/prologin/prololo-reborn";
@@ -34,20 +40,16 @@
 
           devShell = pkgs.mkShell {
             buildInputs = with pkgs; [
-              cargo
-              clippy
               nixpkgs-fmt
               rust-analyzer
-              rustPackages.clippy
-              rustc
-              rustfmt
+              myRust
 
               cmake
               openssl
               pkg-config
             ];
 
-            RUST_SRC_PATH = pkgs.rustPlatform.rustLibSrc;
+            RUST_SRC_PATH = pkgs.rust-bin.stable.latest.rust-std;
           };
         });
 }
