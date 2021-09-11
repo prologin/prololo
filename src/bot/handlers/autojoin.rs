@@ -32,7 +32,7 @@ pub async fn autojoin_authorized_rooms(
             room_id, room_name
         );
 
-        if authorized_rooms.contains(room_id) {
+        if !authorized_rooms.contains(room_id) {
             warn!(
                 "Bot isn't authorized to join room `{}`, declining invitation",
                 room_id
