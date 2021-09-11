@@ -49,7 +49,7 @@
               pkg-config
             ];
 
-            RUST_SRC_PATH = pkgs.rust-bin.stable.latest.rust-std;
+            RUST_SRC_PATH = "${pkgs.rust-bin.stable.latest.rust-src}/lib/rustlib/src/rust/library";
           };
         });
 }
