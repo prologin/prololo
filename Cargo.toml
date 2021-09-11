@@ -8,7 +8,7 @@ edition = "2018"
 [dependencies]
 anyhow = "1.0"
 clap = "3.0.0-beta.4"
-matrix-sdk = "0.4.0"
+matrix-sdk = { git = "https://github.com/matrix-org/matrix-rust-sdk", branch = "fix-invite-events-emitting" }
 serde = "1.0"
 serde_yaml = "0.8"
 tokio = { version = "1.0", features = [ "full" ] }
