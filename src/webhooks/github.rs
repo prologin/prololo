@@ -120,20 +120,26 @@ pub enum RefType {
 
 #[derive(Debug, Deserialize)]
 pub struct GitHubUser {
-    login: String,
+    pub login: String,
 }
 
 #[derive(Debug, Deserialize)]
 pub struct Repository {
-    name: String,
-    full_name: String,
-    html_url: Url,
+    pub name: String,
+    pub full_name: String,
+    pub html_url: Url,
+}
+
+impl Repository {
+    pub fn ref_url(&self, r#ref: &str) -> String {
+        format!("https://github.com/{}/tree/{}", self.full_name, r#ref)
+    }
 }
 
 #[derive(Debug, Deserialize)]
 pub struct CreateEvent {
-    r#ref: String,
-    ref_type: RefType,
-    repository: Repository,
-    sender: GitHubUser,
+    pub r#ref: String,
+    pub ref_type: RefType,
+    pub repository: Repository,
+    pub sender: GitHubUser,
 }
