@@ -1328,7 +1328,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "prololo-reborn"
+name = "prololo"
 version = "0.1.0"
 dependencies = [
  "anyhow",

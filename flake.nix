@@ -26,7 +26,7 @@
 
             meta = with pkgs.lib; {
               homepage = "https://github.com/prologin/prololo-reborn";
-              license = with licenses; [ mit asl20 ];
+              license = with licenses; [ mit ];
               platforms = platforms.unix;
             };
 
