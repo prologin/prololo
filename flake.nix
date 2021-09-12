@@ -19,13 +19,13 @@
       in
         {
           defaultPackage = naersk-lib.buildPackage {
-            pname = "prololo-reborn";
+            pname = "prololo";
             version = "0.1.0";
 
             src = self;
 
             meta = with pkgs.lib; {
-              homepage = "https://github.com/prologin/prololo-reborn";
+              homepage = "https://github.com/prologin/prololo";
               license = with licenses; [ mit ];
               platforms = platforms.unix;
             };
