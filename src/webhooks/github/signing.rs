@@ -24,6 +24,15 @@ fn validate_signature(secret: &str, signature: &str, data: &str) -> bool {
 
     mac.update(data.as_bytes());
 
+    // GitHub puts a prefix in front of its hex SHA256
+    let signature = match signature.strip_prefix("sha256=") {
+        Some(s) => s,
+        None => {
+            trace!("couldn't strip prefix from signature `{}`", signature);
+            return false;
+        }
+    };
+
     match hex::decode(signature) {
         Ok(bytes) => mac.verify(&bytes).is_ok(),
         Err(_) => {
