@@ -1,11 +1,11 @@
 use std::fs::File;
 use std::io::BufReader;
 use std::path::PathBuf;
-use std::sync::mpsc::sync_channel;
 
 use anyhow::Context;
 use clap::Clap;
 use rocket::routes;
+use tokio::sync::mpsc::unbounded_channel;
 
 mod bot;
 use bot::Prololo;
@@ -34,7 +34,7 @@ async fn main() -> anyhow::Result<()> {
     let config: ProloloConfig = serde_yaml::from_reader(BufReader::new(config_file))
         .context("couldn't parse config file")?;
 
-    let (sender, receiver) = sync_channel(42);
+    let (sender, receiver) = unbounded_channel();
 
     let prololo = Prololo::new(config).context("failed to create prololo bot")?;
     prololo.init().await.context("failed to init prololo bot")?;

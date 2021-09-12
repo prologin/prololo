@@ -2,7 +2,6 @@ use std::{
     fs::File,
     io::{BufReader, BufWriter},
     path::PathBuf,
-    sync::mpsc::Receiver,
 };
 
 use anyhow::Context;
@@ -11,6 +10,7 @@ use matrix_sdk::{
     ruma::events::{room::member::MemberEventContent, StrippedStateEvent},
     Client, ClientConfig, Session, SyncSettings,
 };
+use tokio::sync::mpsc::UnboundedReceiver;
 use tracing::{debug, info};
 
 use crate::{config::ProloloConfig, webhooks::Event};
@@ -62,21 +62,29 @@ impl Prololo {
     ///
     /// [`Prololo::init`] **must** be called before this function, otherwise the [`Client`] isn't
     /// logged in.
-    pub async fn run(&self, events: Receiver<Event>) {
+    pub async fn run(&self, events: UnboundedReceiver<Event>) {
         debug!("running...");
 
         let client = self.client.clone();
         let config = self.config.clone();
-        tokio::task::spawn_blocking(move || {
-            Self::handle_events(events, client, config);
-        });
+        tokio::task::spawn(async move { Self::receive_events(events, client, config).await });
 
         self.client.sync(SyncSettings::default()).await
     }
 
-    fn handle_events(events: Receiver<Event>, client: Client, config: ProloloConfig) {
+    async fn receive_events(
+        mut events: UnboundedReceiver<Event>,
+        client: Client,
+        config: ProloloConfig,
+    ) {
         loop {
-            let event = events.recv().unwrap();
+            let event = match events.recv().await {
+                Some(event) => event,
+                None => {
+                    info!("all channel senders were dropped, exiting receive loop");
+                    break;
+                }
+            };
             debug!("received event: {:?}", event);
         }
     }

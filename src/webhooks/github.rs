@@ -39,7 +39,10 @@ pub fn github_webhook(
         }
     };
 
-    sender.0.send(Event::GitHub(event)).unwrap();
+    sender
+        .0
+        .send(Event::GitHub(event))
+        .expect("mpsc channel was closed / dropped");
 
     Status::Ok
 }
