@@ -7,12 +7,14 @@ use rocket::{
     http::{ContentType, Status},
     Data, Request, State,
 };
+use tracing::trace;
 
 use crate::webhooks::github::GitHubSecret;
 
 const X_GITHUB_SIGNATURE: &str = "X-Hub-Signature-256";
 
 fn validate_signature(secret: &str, signature: &str, data: &str) -> bool {
+    trace!("validating signature...");
     use hmac::{Hmac, Mac, NewMac};
     use sha2::Sha256;
 
@@ -54,6 +56,7 @@ impl<'r> FromData<'r> for SignedGitHubPayload {
     type Error = anyhow::Error;
 
     async fn from_data(request: &'r Request<'_>, data: Data<'r>) -> Outcome<'r, Self> {
+        trace!("received payload on GitHub webhook endpoint");
         let json_ct = ContentType::new("application", "json");
         if request.content_type() != Some(&json_ct) {
             return Outcome::Failure((Status::BadRequest, anyhow!("wrong content type")));
@@ -90,6 +93,7 @@ impl<'r> FromData<'r> for SignedGitHubPayload {
             return Outcome::Failure((Status::BadRequest, anyhow!("couldn't verify signature")));
         }
 
+        trace!("validated GitHub payload");
         Outcome::Success(SignedGitHubPayload(content))
     }
 }

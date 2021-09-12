@@ -4,6 +4,7 @@ use std::{
     path::PathBuf,
 };
 
+use anyhow::Context;
 use matrix_sdk::{
     room::Room,
     ruma::events::{room::member::MemberEventContent, StrippedStateEvent},
@@ -37,7 +38,9 @@ impl Prololo {
     ///
     /// The bot is ready to run once this function has been called.
     pub async fn init(&self) -> anyhow::Result<()> {
-        self.load_or_init_session().await?;
+        self.load_or_init_session()
+            .await
+            .context("couldn't init session for matrix bot")?;
 
         let authorized_rooms = vec![self.config.matrix_room_id.clone()];
 

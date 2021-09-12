@@ -8,7 +8,7 @@ use serde::Deserialize;
 
 mod signing;
 use signing::SignedGitHubPayload;
-use tracing::info;
+use tracing::{debug, info, warn};
 
 const X_GITHUB_EVENT: &str = "X-GitHub-Event";
 
@@ -31,6 +31,7 @@ pub enum GitHubEventType {
     Issues,
     IssueComment,
     Push,
+    Unknown,
 }
 
 #[rocket::async_trait]
@@ -48,10 +49,24 @@ impl<'r> FromRequest<'r> for GitHubEventType {
 
         let event_type = event_types[0];
 
-        match serde_json::from_str::<GitHubEventType>(event_type) {
-            Ok(ev_type) => Outcome::Success(ev_type),
-            Err(e) => Outcome::Failure((Status::BadRequest, anyhow!(e))),
-        }
+        // HACK: serialize the Rust String to a JSON string so that it's deserializable into the
+        // GitHubEventType enum correctly:
+        //
+        // - `create` is not a valid JSON string
+        // - `"create"` is!
+        let event_type_json_value =
+            serde_json::to_value(event_type).expect("`String` serialization should never fail");
+        let event_type = match serde_json::from_value::<GitHubEventType>(event_type_json_value) {
+            Ok(ev_type) => ev_type,
+            Err(e) => {
+                warn!("received unknown event type: {}, {}", event_type, e);
+                GitHubEventType::Unknown
+            }
+        };
+
+        debug!("received request with type {:?}", event_type);
+
+        Outcome::Success(event_type)
     }
 }
 
