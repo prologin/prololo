@@ -1,5 +1,4 @@
 use std::io;
-use std::ops::{Deref, DerefMut};
 
 use anyhow::anyhow;
 use rocket::{
@@ -43,21 +42,6 @@ fn validate_signature(secret: &str, signature: &str, data: &str) -> bool {
 }
 
 pub struct SignedGitHubPayload(pub String);
-
-// FIXME: probably not needed
-impl Deref for SignedGitHubPayload {
-    type Target = String;
-
-    fn deref(&self) -> &String {
-        &self.0
-    }
-}
-
-impl DerefMut for SignedGitHubPayload {
-    fn deref_mut(&mut self) -> &mut String {
-        &mut self.0
-    }
-}
 
 const LIMIT: ByteUnit = ByteUnit::Mebibyte(1);
 
