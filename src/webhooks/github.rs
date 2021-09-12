@@ -5,11 +5,11 @@ use rocket::{
     Request, State,
 };
 use serde::Deserialize;
+use tracing::{debug, info, trace, warn};
+use url::Url;
 
 mod signing;
 use signing::SignedGitHubPayload;
-use tracing::{debug, info, trace, warn};
-use url::Url;
 
 use crate::webhooks::{Event, EventSender};
 

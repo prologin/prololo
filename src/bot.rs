@@ -22,7 +22,7 @@ use crate::{
 };
 
 mod handlers;
-use handlers::autojoin::autojoin_authorized_rooms;
+use handlers::autojoin_authorized_rooms;
 
 pub struct Prololo {
     client: Client,

@@ -1,7 +1,7 @@
+use tokio::sync::mpsc::UnboundedSender;
+
 pub mod github;
 pub use github::{github_webhook, GitHubEvent};
-
-use tokio::sync::mpsc::UnboundedSender;
 
 pub struct EventSender(pub UnboundedSender<Event>);
 
