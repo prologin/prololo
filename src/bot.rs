@@ -55,7 +55,6 @@ impl Prololo {
             .register_event_handler({
                 move |ev: StrippedStateEvent<MemberEventContent>, client: Client, room: Room| {
                     let authorized_rooms = authorized_rooms.clone();
-                    debug!("handler!!!second");
                     async move { autojoin_authorized_rooms(ev, client, room, authorized_rooms).await }
                 }
             })
