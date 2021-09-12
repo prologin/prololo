@@ -26,7 +26,10 @@ fn validate_signature(secret: &str, signature: &str, data: &str) -> bool {
 
     match hex::decode(signature) {
         Ok(bytes) => mac.verify(&bytes).is_ok(),
-        Err(_) => false,
+        Err(_) => {
+            trace!("couldn't decode hex-encoded signature {}", signature);
+            false
+        }
     }
 }
 
@@ -56,9 +59,14 @@ impl<'r> FromData<'r> for SignedGitHubPayload {
     type Error = anyhow::Error;
 
     async fn from_data(request: &'r Request<'_>, data: Data<'r>) -> Outcome<'r, Self> {
-        trace!("received payload on GitHub webhook endpoint");
+        trace!("received payload on GitHub webhook endpoint: {:?}", request);
+
         let json_ct = ContentType::new("application", "json");
         if request.content_type() != Some(&json_ct) {
+            trace!(
+                "content type `{:?}` wasn't json, stopping here...",
+                request.content_type()
+            );
             return Outcome::Failure((Status::BadRequest, anyhow!("wrong content type")));
         }
 
@@ -67,6 +75,7 @@ impl<'r> FromData<'r> for SignedGitHubPayload {
             .get(X_GITHUB_SIGNATURE)
             .collect::<Vec<_>>();
         if signatures.len() != 1 {
+            trace!("couldn't locate {} header", X_GITHUB_SIGNATURE);
             return Outcome::Failure((
                 Status::BadRequest,
                 anyhow!("request header needs exactly one signature"),
@@ -78,6 +87,7 @@ impl<'r> FromData<'r> for SignedGitHubPayload {
             Ok(s) if s.is_complete() => s.into_inner(),
             Ok(_) => {
                 let eof = io::ErrorKind::UnexpectedEof;
+                trace!("payload was too big");
                 return Outcome::Failure((
                     Status::PayloadTooLarge,
                     io::Error::new(eof, "data limit exceeded").into(),
@@ -90,6 +100,7 @@ impl<'r> FromData<'r> for SignedGitHubPayload {
         let secret = request.guard::<&State<GitHubSecret>>().await.unwrap();
 
         if !validate_signature(&secret.0, signature, &content) {
+            trace!("signature validation failed, stopping here...");
             return Outcome::Failure((Status::BadRequest, anyhow!("couldn't verify signature")));
         }
 

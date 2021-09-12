@@ -8,7 +8,7 @@ use serde::Deserialize;
 
 mod signing;
 use signing::SignedGitHubPayload;
-use tracing::{debug, info, warn};
+use tracing::{debug, info, trace, warn};
 use url::Url;
 
 use crate::webhooks::{Event, EventSender};
@@ -23,10 +23,8 @@ pub fn github_webhook(
     payload: SignedGitHubPayload,
     sender: &State<EventSender>,
 ) -> Status {
-    info!(
-        "received event {:?} with signed payload:\n{}",
-        event, payload.0
-    );
+    info!("received event {:?} with signed payload", event);
+    trace!("payload: {}", payload.0);
 
     let event = match event.parse_payload(&payload) {
         Ok(event) => event,
