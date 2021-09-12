@@ -4,7 +4,7 @@ use matrix_sdk::ruma::RoomId;
 use serde::Deserialize;
 use url::Url;
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Clone)]
 pub struct ProloloConfig {
     /// The URL for the homeserver we should connect to
     pub matrix_homeserver: Url,

@@ -2,6 +2,7 @@ use std::{
     fs::File,
     io::{BufReader, BufWriter},
     path::PathBuf,
+    sync::mpsc::Receiver,
 };
 
 use anyhow::Context;
@@ -12,7 +13,7 @@ use matrix_sdk::{
 };
 use tracing::{debug, info};
 
-use crate::config::ProloloConfig;
+use crate::{config::ProloloConfig, webhooks::Event};
 
 mod handlers;
 use handlers::autojoin::autojoin_authorized_rooms;
@@ -61,9 +62,23 @@ impl Prololo {
     ///
     /// [`Prololo::init`] **must** be called before this function, otherwise the [`Client`] isn't
     /// logged in.
-    pub async fn run(&self) {
+    pub async fn run(&self, events: Receiver<Event>) {
         debug!("running...");
+
+        let client = self.client.clone();
+        let config = self.config.clone();
+        tokio::task::spawn_blocking(move || {
+            Self::handle_events(events, client, config);
+        });
+
         self.client.sync(SyncSettings::default()).await
+    }
+
+    fn handle_events(events: Receiver<Event>, client: Client, config: ProloloConfig) {
+        loop {
+            let event = events.recv().unwrap();
+            debug!("received event: {:?}", event);
+        }
     }
 
     /// This loads the session information from an existing file, and tries to login with it. If no such

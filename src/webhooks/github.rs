@@ -1,27 +1,47 @@
-use anyhow::anyhow;
+use anyhow::{anyhow, bail};
 use rocket::{
     http::Status,
     request::{FromRequest, Outcome},
-    Request,
+    Request, State,
 };
 use serde::Deserialize;
 
 mod signing;
 use signing::SignedGitHubPayload;
 use tracing::{debug, info, warn};
+use url::Url;
+
+use crate::webhooks::{Event, EventSender};
 
 const X_GITHUB_EVENT: &str = "X-GitHub-Event";
 
 struct GitHubSecret(String);
 
 #[rocket::post("/api/webhooks/github", data = "<payload>")]
-pub fn github_webhook(event: GitHubEventType, payload: SignedGitHubPayload) -> &'static str {
+pub fn github_webhook(
+    event: GitHubEventType,
+    payload: SignedGitHubPayload,
+    sender: &State<EventSender>,
+) -> Status {
     info!(
         "received event {:?} with signed payload:\n{}",
         event, payload.0
     );
 
-    "OK"
+    let event = match event.parse_payload(&payload) {
+        Ok(event) => event,
+        Err(e) => {
+            warn!(
+                "couldn't parse payload for event {:?}: {}\n{}",
+                event, e, payload.0
+            );
+            return Status::BadRequest;
+        }
+    };
+
+    sender.0.send(Event::GitHub(event)).unwrap();
+
+    Status::Ok
 }
 
 #[derive(Debug, Deserialize)]
@@ -32,6 +52,16 @@ pub enum GitHubEventType {
     IssueComment,
     Push,
     Unknown,
+}
+
+impl GitHubEventType {
+    fn parse_payload(&self, payload: &SignedGitHubPayload) -> anyhow::Result<GitHubEvent> {
+        Ok(match self {
+            Self::Create => GitHubEvent::Create(serde_json::from_str(&payload.0)?),
+            Self::Unknown => bail!("unknown event type"),
+            _ => unimplemented!(),
+        })
+    }
 }
 
 #[rocket::async_trait]
@@ -70,16 +100,37 @@ impl<'r> FromRequest<'r> for GitHubEventType {
     }
 }
 
-enum GitHubEvent {
-    Create { ref_type: RefType },
+#[derive(Debug)]
+pub enum GitHubEvent {
+    Create(CreateEvent),
     Issues,
     IssueComment,
     Push,
 }
 
-#[derive(Deserialize)]
+#[derive(Debug, Deserialize)]
 #[serde(rename_all = "lowercase")]
-enum RefType {
+pub enum RefType {
     Branch,
     Tag,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct GitHubUser {
+    login: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct Repository {
+    name: String,
+    full_name: String,
+    html_url: Url,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct CreateEvent {
+    r#ref: String,
+    ref_type: RefType,
+    repository: Repository,
+    sender: GitHubUser,
 }
