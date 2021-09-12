@@ -14,7 +14,7 @@ mod config;
 use config::ProloloConfig;
 
 mod webhooks;
-use webhooks::{github_webhook, EventSender};
+use webhooks::{github::GitHubSecret, github_webhook, EventSender};
 
 #[derive(Clap)]
 #[clap(version = "0.1")]
@@ -35,6 +35,7 @@ async fn main() -> anyhow::Result<()> {
         .context("couldn't parse config file")?;
 
     let (sender, receiver) = unbounded_channel();
+    let github_secret = config.github_secret.clone();
 
     let prololo = Prololo::new(config).context("failed to create prololo bot")?;
     prololo.init().await.context("failed to init prololo bot")?;
@@ -42,6 +43,7 @@ async fn main() -> anyhow::Result<()> {
 
     let rocket = rocket::build()
         .mount("/", routes![github_webhook])
-        .manage(EventSender(sender));
+        .manage(EventSender(sender))
+        .manage(GitHubSecret(github_secret));
     rocket.launch().await.map_err(|err| anyhow::anyhow!(err))
 }

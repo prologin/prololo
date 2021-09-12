@@ -17,4 +17,6 @@ pub struct ProloloConfig {
     /// ID of the Matrix room where the bot should post messages. The bot will only accept
     /// invitations to this room.
     pub matrix_room_id: RoomId,
+    /// Secret used to verify HMAC signature of GitHub webhooks
+    pub github_secret: String,
 }
