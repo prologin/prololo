@@ -1,6 +1,7 @@
 use std::{
     fs::File,
     io::{BufReader, BufWriter},
+    path::PathBuf,
 };
 
 use matrix_sdk::{
@@ -66,7 +67,7 @@ impl Prololo {
     /// file is found, then login using username and password, and save the new session information on
     /// disk.
     async fn load_or_init_session(&self) -> anyhow::Result<()> {
-        let session_file = self.config.matrix_state_dir.join("session.yaml");
+        let session_file = PathBuf::from("matrix-session.yaml");
 
         if session_file.is_file() {
             let reader = BufReader::new(File::open(session_file)?);
