@@ -22,7 +22,7 @@ pub struct Prololo {
 
 impl Prololo {
     /// Creates a new [`Prololo`] bot and builds a [`matrix_sdk::Client`] using the provided
-    /// [`Config`].
+    /// [`ProloloConfig`].
     ///
     /// The [`Client`] is only initialized, not ready to be used yet.
     pub fn new(config: ProloloConfig) -> anyhow::Result<Self> {
