@@ -23,8 +23,7 @@ tracing = "0.1"
 url = { version = "2.2", features = [ "serde" ] }
 
 [dependencies.matrix-sdk]
-git = "https://github.com/matrix-org/matrix-rust-sdk"
-branch = "fix-invite-events-emitting"
+version = "0.4.1"
 default-features = false
 features = [ "native-tls" ]
 

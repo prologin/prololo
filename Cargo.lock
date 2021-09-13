@@ -924,8 +924,9 @@ checksum = "a3e378b66a060d48947b590737b30a1be76706c8dd7b8ba0f2fe3989c68a853f"
 
 [[package]]
 name = "matrix-sdk"
-version = "0.4.0"
-source = "git+https://github.com/matrix-org/matrix-rust-sdk?branch=fix-invite-events-emitting#20f6b7dbdb0f06676c63cd3f35077590207ab650"
+version = "0.4.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5834b96fef26d6d61c8ffd21dda3569c7c0fc688f9cc8aebd35f6f8c3068a186"
 dependencies = [
  "backoff",
  "bytes",
@@ -951,8 +952,9 @@ dependencies = [
 
 [[package]]
 name = "matrix-sdk-base"
-version = "0.4.0"
-source = "git+https://github.com/matrix-org/matrix-rust-sdk?branch=fix-invite-events-emitting#20f6b7dbdb0f06676c63cd3f35077590207ab650"
+version = "0.4.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b97c4d675ff70395c1b0cd94fae869cea4efd3f148b74bf4186e969ee622a9c7"
 dependencies = [
  "dashmap",
  "futures",
@@ -969,8 +971,9 @@ dependencies = [
 
 [[package]]
 name = "matrix-sdk-common"
-version = "0.4.0"
-source = "git+https://github.com/matrix-org/matrix-rust-sdk?branch=fix-invite-events-emitting#20f6b7dbdb0f06676c63cd3f35077590207ab650"
+version = "0.4.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "31c004ca5d02a17eb827a2c3d8e34c9a84c075b42cfed7022895ba6418372ea5"
 dependencies = [
  "async-trait",
  "futures",
