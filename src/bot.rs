@@ -7,19 +7,16 @@ use std::{
 use anyhow::Context;
 use matrix_sdk::{
     room::Room,
-    ruma::events::{
-        room::member::MemberEventContent, room::message::MessageEventContent,
-        AnyMessageEventContent, StrippedStateEvent,
-    },
+    ruma::events::{room::member::MemberEventContent, StrippedStateEvent},
     Client, ClientConfig, Session, SyncSettings,
 };
 use tokio::sync::mpsc::UnboundedReceiver;
-use tracing::{debug, info, warn};
+use tracing::{debug, info};
 
-use crate::{
-    config::ProloloConfig,
-    webhooks::{github::RefType, Event, GitHubEvent},
-};
+use crate::{config::ProloloConfig, webhooks::Event};
+
+mod github;
+use github::handle_github_event;
 
 mod handlers;
 use handlers::autojoin_authorized_rooms;
@@ -98,47 +95,7 @@ impl Prololo {
 
     async fn handle_event(event: Event, client: &Client, config: &ProloloConfig) {
         match event {
-            Event::GitHub(event) => Self::handle_github_event(event, client, config).await,
-        }
-    }
-
-    const SEPARATOR: &'static str = "⋅";
-
-    async fn handle_github_event(event: GitHubEvent, client: &Client, config: &ProloloConfig) {
-        let message = match event {
-            GitHubEvent::Create(event) => match event.ref_type {
-                RefType::Branch => return, // new branches are handled by the Push event
-                RefType::Tag => {
-                    format!(
-                        "[{}] {} created tag {} {} {}",
-                        event.repository.name,
-                        event.sender.login,
-                        event.r#ref,
-                        Self::SEPARATOR,
-                        event.repository.ref_url(&event.r#ref)
-                    )
-                }
-            },
-            GitHubEvent::Issues => todo!(),
-            GitHubEvent::IssueComment => todo!(),
-            GitHubEvent::Push => todo!(),
-        };
-
-        let message = AnyMessageEventContent::RoomMessage(MessageEventContent::text_plain(message));
-
-        let room = match client.get_joined_room(&config.matrix_room_id) {
-            Some(room) => room,
-            None => {
-                warn!(
-                    "room {} isn't joined yet, can't send message",
-                    config.matrix_room_id
-                );
-                return;
-            }
-        };
-
-        if let Err(e) = room.send(message, None).await {
-            warn!("encountered error while sending message: {}", e);
+            Event::GitHub(event) => handle_github_event(event, client, config).await,
         }
     }
 
