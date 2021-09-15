@@ -4,14 +4,14 @@ use std::{
     path::PathBuf,
 };
 
-use anyhow::Context;
+use anyhow::{anyhow, Context};
 use matrix_sdk::{
     room::Room,
     ruma::events::{room::member::MemberEventContent, StrippedStateEvent},
     Client, ClientConfig, Session, SyncSettings,
 };
 use tokio::sync::mpsc::UnboundedReceiver;
-use tracing::{debug, info};
+use tracing::{debug, info, warn};
 
 use crate::{config::ProloloConfig, webhooks::Event};
 
@@ -89,14 +89,35 @@ impl Prololo {
             };
             debug!("received event: {:?}", event);
 
-            Self::handle_event(event, &client, &config).await
+            if let Err(e) = Self::handle_event(event, &client, &config).await {
+                warn!("encountered error while handling event: {}", e);
+            }
         }
     }
 
-    async fn handle_event(event: Event, client: &Client, config: &ProloloConfig) {
-        match event {
-            Event::GitHub(event) => handle_github_event(event, client, config).await,
+    async fn handle_event(
+        event: Event,
+        client: &Client,
+        config: &ProloloConfig,
+    ) -> anyhow::Result<()> {
+        let response = match event {
+            Event::GitHub(event) => handle_github_event(event)?,
+        };
+
+        if let Some(message) = response {
+            let room = client
+                .get_joined_room(&config.matrix_room_id)
+                .ok_or_else(|| {
+                    anyhow!(
+                        "room {} isn't joined yet, can't send message",
+                        config.matrix_room_id
+                    )
+                })?;
+
+            room.send(message, None).await?;
         }
+
+        Ok(())
     }
 
     /// This loads the session information from an existing file, and tries to login with it. If no such
