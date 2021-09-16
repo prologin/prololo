@@ -26,6 +26,7 @@ impl GitHubEventType {
     ) -> anyhow::Result<GitHubEvent> {
         Ok(match self {
             Self::Create => GitHubEvent::Create(serde_json::from_str(&payload.0)?),
+            Self::Issues => GitHubEvent::Issues(serde_json::from_str(&payload.0)?),
             Self::Unknown => bail!("unknown event type"),
             _ => unimplemented!(),
         })
