@@ -28,7 +28,7 @@ impl GitHubEventType {
             Self::Create => GitHubEvent::Create(serde_json::from_str(&payload.0)?),
             Self::Issues => GitHubEvent::Issues(serde_json::from_str(&payload.0)?),
             Self::Unknown => bail!("unknown event type"),
-            _ => unimplemented!(),
+            _ => bail!("not implemented yet"),
         })
     }
 }
