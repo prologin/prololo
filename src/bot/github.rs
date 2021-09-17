@@ -1,40 +1,46 @@
 use std::fmt::Write;
 
-use matrix_sdk::ruma::events::{room::message::MessageEventContent, AnyMessageEventContent};
-
-use crate::webhooks::{
-    github::{CreateEvent, IssuesEvent, RefType},
-    GitHubEvent,
+use crate::{
+    bot::Response,
+    webhooks::{
+        github::{CreateEvent, IssuesEvent, RefType},
+        GitHubEvent,
+    },
 };
 
 const SEPARATOR: &str = "⋅";
 
-pub fn handle_github_event(event: GitHubEvent) -> anyhow::Result<Option<AnyMessageEventContent>> {
-    let message = match event {
+pub fn handle_github_event(event: GitHubEvent) -> anyhow::Result<Option<Response>> {
+    let response = match event {
         GitHubEvent::Create(event) => handle_create(event),
         GitHubEvent::Issues(event) => handle_issues(event),
         GitHubEvent::IssueComment => todo!(),
         GitHubEvent::Push => todo!(),
     };
 
-    Ok(message.map(|m| AnyMessageEventContent::RoomMessage(MessageEventContent::text_plain(m))))
+    Ok(response)
 }
 
-fn handle_create(event: CreateEvent) -> Option<String> {
-    match event.ref_type {
-        RefType::Branch => None,
-        RefType::Tag => Some(format!(
+fn handle_create(event: CreateEvent) -> Option<Response> {
+    let message = match event.ref_type {
+        RefType::Branch => return None,
+        RefType::Tag => format!(
             "[{}] {} created tag {} {} {}",
             event.repository.name,
             event.sender.login,
             event.r#ref,
             SEPARATOR,
             event.repository.ref_url(&event.r#ref)
-        )),
-    }
+        ),
+    };
+
+    Some(Response {
+        message,
+        repo: Some(event.repository.full_name),
+    })
 }
 
-fn handle_issues(event: IssuesEvent) -> Option<String> {
+fn handle_issues(event: IssuesEvent) -> Option<Response> {
     let action = event.action;
     let issue = event.issue;
 
@@ -94,5 +100,8 @@ fn handle_issues(event: IssuesEvent) -> Option<String> {
 
     write!(message, " {} {}", SEPARATOR, issue.html_url).unwrap();
 
-    Some(message)
+    Some(Response {
+        message,
+        repo: Some(event.repository.full_name),
+    })
 }

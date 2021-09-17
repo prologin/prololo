@@ -7,11 +7,17 @@ use std::{
 use anyhow::{anyhow, Context};
 use matrix_sdk::{
     room::Room,
-    ruma::events::{room::member::MemberEventContent, StrippedStateEvent},
+    ruma::{
+        events::{
+            room::{member::MemberEventContent, message::MessageEventContent},
+            AnyMessageEventContent, StrippedStateEvent,
+        },
+        RoomId,
+    },
     Client, ClientConfig, Session, SyncSettings,
 };
 use tokio::sync::mpsc::UnboundedReceiver;
-use tracing::{debug, info, warn};
+use tracing::{debug, info, trace, warn};
 
 use crate::{config::ProloloConfig, webhooks::Event};
 
@@ -46,7 +52,12 @@ impl Prololo {
             .await
             .context("couldn't init session for matrix bot")?;
 
-        let authorized_rooms = vec![self.config.matrix_room_id.clone()];
+        let authorized_rooms: Vec<RoomId> = self
+            .config
+            .matrix_rooms
+            .values()
+            .map(|room| room.id.clone())
+            .collect();
 
         self.client
             .register_event_handler({
@@ -104,18 +115,31 @@ impl Prololo {
             Event::GitHub(event) => handle_github_event(event)?,
         };
 
-        if let Some(message) = response {
-            let room = client
-                .get_joined_room(&config.matrix_room_id)
-                .ok_or_else(|| {
-                    anyhow!(
-                        "room {} isn't joined yet, can't send message",
-                        config.matrix_room_id
-                    )
-                })?;
+        let Response { message, repo } = match response {
+            Some(response) => response,
+            // event doesn't need a message from the bot
+            None => {
+                trace!("event didn't need to be announced");
+                return Ok(());
+            }
+        };
 
-            room.send(message, None).await?;
-        }
+        let room = repo
+            // get room id for current repo, or use default room
+            .map_or_else(|| config.default_room(), |repo| config.find_room_for(repo))
+            // find that joined room in the Matrix client
+            .and_then(|room_id| {
+                client.get_joined_room(room_id).ok_or_else(|| {
+                    anyhow!(
+                        "room with id {} isn't joined yet, can't send message",
+                        room_id
+                    )
+                })
+            })?;
+
+        trace!("sending message `{}` to room `{}`", message, room.room_id());
+        let message = AnyMessageEventContent::RoomMessage(MessageEventContent::text_plain(message));
+        room.send(message, None).await?;
 
         Ok(())
     }
@@ -157,4 +181,9 @@ impl Prololo {
 
         Ok(())
     }
+}
+
+pub struct Response {
+    pub message: String,
+    pub repo: Option<String>,
 }
