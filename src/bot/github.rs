@@ -3,7 +3,7 @@ use std::fmt::Write;
 use crate::{
     bot::Response,
     webhooks::{
-        github::{CreateEvent, IssuesEvent, RefType},
+        github::{CreateEvent, IssueCommentEvent, IssuesEvent, RefType},
         GitHubEvent,
     },
 };
@@ -14,7 +14,7 @@ pub fn handle_github_event(event: GitHubEvent) -> anyhow::Result<Option<Response
     let response = match event {
         GitHubEvent::Create(event) => handle_create(event),
         GitHubEvent::Issues(event) => handle_issues(event),
-        GitHubEvent::IssueComment => todo!(),
+        GitHubEvent::IssueComment(event) => handle_issue_comment(event),
         GitHubEvent::Push => todo!(),
     };
 
@@ -99,6 +99,30 @@ fn handle_issues(event: IssuesEvent) -> Option<Response> {
     }
 
     write!(message, " {} {}", SEPARATOR, issue.html_url).unwrap();
+
+    Some(Response {
+        message,
+        repo: Some(event.repository.full_name),
+    })
+}
+
+fn handle_issue_comment(event: IssueCommentEvent) -> Option<Response> {
+    let action = event.action;
+    let comment = event.comment;
+    let issue = event.issue;
+
+    let mut message = format!("[{}] {}", event.repository.name, event.sender.login);
+
+    match action.as_str() {
+        "created" => write!(message, " commented on issue {}: {}", issue, comment.body).unwrap(),
+
+        // too verbose, don't log that
+        "edited" | "deleted" => return None,
+
+        _ => return None, // FIXME log error
+    }
+
+    write!(message, " {} {}", SEPARATOR, comment.html_url).unwrap();
 
     Some(Response {
         message,

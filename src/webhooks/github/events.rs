@@ -4,18 +4,20 @@ use serde::Deserialize;
 use url::Url;
 
 mod create;
+mod issue_comment;
 mod issues;
 mod types;
 
 pub use create::*;
+pub use issue_comment::*;
 pub use issues::*;
 pub use types::*;
 
 #[derive(Debug)]
 pub enum GitHubEvent {
     Create(CreateEvent),
+    IssueComment(IssueCommentEvent),
     Issues(IssuesEvent),
-    IssueComment,
     Push,
 }
 
@@ -62,4 +64,10 @@ impl Display for Issue {
 #[derive(Debug, Deserialize)]
 pub struct Milestone {
     pub title: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct Comment {
+    pub html_url: Url,
+    pub body: String,
 }
