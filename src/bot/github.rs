@@ -3,7 +3,7 @@ use std::fmt::Write;
 use crate::{
     bot::Response,
     webhooks::{
-        github::{CreateEvent, IssueCommentEvent, IssuesEvent, RefType},
+        github::{CreateEvent, IssueCommentEvent, IssuesEvent, PullRequestEvent, RefType},
         GitHubEvent,
     },
 };
@@ -16,6 +16,7 @@ pub fn handle_github_event(event: GitHubEvent) -> anyhow::Result<Option<Response
         GitHubEvent::Issues(event) => handle_issues(event),
         GitHubEvent::IssueComment(event) => handle_issue_comment(event),
         GitHubEvent::Push => todo!(),
+        GitHubEvent::PullRequest(event) => handle_pull_request(event),
     };
 
     Ok(response)
@@ -123,6 +124,62 @@ fn handle_issue_comment(event: IssueCommentEvent) -> Option<Response> {
     }
 
     write!(message, " {} {}", SEPARATOR, comment.html_url).unwrap();
+
+    Some(Response {
+        message,
+        repo: Some(event.repository.full_name),
+    })
+}
+
+fn handle_pull_request(event: PullRequestEvent) -> Option<Response> {
+    let action = event.action;
+    let pr = event.pull_request;
+
+    let mut message = format!("[{}] {}", event.repository.name, event.sender.login);
+
+    match action.as_str() {
+        "assigned" | "unassigned" => {
+            let assignee = event
+                .assignee
+                .expect("assigned action should always have an assignee");
+            let sender = event.sender;
+            if assignee.id == sender.id {
+                write!(message, " self-{}", action).unwrap();
+            } else {
+                write!(message, " {} {}", action, assignee.login).unwrap();
+            }
+            write!(message, " to {}", pr).unwrap();
+        }
+
+        "review_requested" => {
+            let reviewers = pr
+                .requested_reviewers
+                .iter()
+                .map(|user| user.login.as_str())
+                .collect::<Vec<&str>>()
+                .join(", ");
+
+            write!(message, " requested {} to review {}", reviewers, pr).unwrap();
+        }
+
+        // too verbose, don't log that
+        "labeled" | "unlabeled" | "review_requested_removed" => return None,
+
+        "opened" | "edited" | "reopened" => {
+            let base = &pr.base.r#ref;
+            let head = &pr.head.r#ref;
+            write!(message, " {} {} ({}...{})", action, pr, base, head).unwrap();
+        }
+
+        "closed" => {
+            let decision = if pr.merged { "merged" } else { "closed" };
+            write!(message, " {} {}", decision, pr).unwrap();
+        }
+
+        _ => return None, // FIXME log error
+    }
+
+    write!(message, " {} {}", SEPARATOR, pr.html_url).unwrap();
 
     Some(Response {
         message,
