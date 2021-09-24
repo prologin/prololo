@@ -3,7 +3,7 @@ use std::fmt::Write;
 use url::Url;
 
 use crate::{
-    bot::Response,
+    bot::{utils::shorten_content, Response},
     webhooks::{
         github::{
             CreateEvent, IssueCommentEvent, IssuesEvent, PullRequestEvent,
@@ -133,7 +133,9 @@ fn handle_issue_comment(event: IssueCommentEvent) -> Option<Response> {
         "created" => write!(
             message,
             " commented on {} {}: {}",
-            issue_or_pr, issue, comment.body
+            issue_or_pr,
+            issue,
+            shorten_content(&comment.body)
         )
         .unwrap(),
 

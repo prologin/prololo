@@ -27,6 +27,8 @@ use github::handle_github_event;
 mod handlers;
 use handlers::autojoin_authorized_rooms;
 
+pub(crate) mod utils;
+
 pub struct Prololo {
     client: Client,
     config: ProloloConfig,
