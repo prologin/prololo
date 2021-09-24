@@ -1,24 +1,28 @@
 use std::fmt::Write;
 
+use url::Url;
+
 use crate::{
     bot::Response,
     webhooks::{
         github::{
             CreateEvent, IssueCommentEvent, IssuesEvent, PullRequestEvent,
-            PullRequestReviewCommentEvent, PullRequestReviewEvent, RefType,
+            PullRequestReviewCommentEvent, PullRequestReviewEvent, PushEvent, RefType,
         },
         GitHubEvent,
     },
 };
 
+const BRANCH: &str = "⊶";
 const SEPARATOR: &str = "⋅";
+const SHORT_HASH_LENGTH: usize = 7;
 
 pub fn handle_github_event(event: GitHubEvent) -> anyhow::Result<Option<Response>> {
     let response = match event {
         GitHubEvent::Create(event) => handle_create(event),
         GitHubEvent::Issues(event) => handle_issues(event),
         GitHubEvent::IssueComment(event) => handle_issue_comment(event),
-        GitHubEvent::Push => todo!(),
+        GitHubEvent::Push(event) => handle_push(event),
         GitHubEvent::PullRequest(event) => handle_pull_request(event),
         GitHubEvent::PullRequestReview(event) => handle_pull_request_review(event),
         GitHubEvent::PullRequestReviewComment(event) => handle_pull_request_review_comment(event),
@@ -289,6 +293,61 @@ fn handle_pull_request_review_comment(event: PullRequestReviewCommentEvent) -> O
     }
 
     write!(message, " {} {}", SEPARATOR, comment.html_url).unwrap();
+
+    Some(Response {
+        message,
+        repo: Some(event.repository.full_name),
+    })
+}
+
+fn handle_push(event: PushEvent) -> Option<Response> {
+    let commits = event.commits;
+
+    if commits.is_empty() {
+        // no commits => a tag was pushed, handled by `create` events
+        return None;
+    }
+
+    let pusher = event.sender.login;
+    let head = event.head_commit.expect("should have at least one commit");
+    // it should be okay to use slicing on a string here because commit hashes should only contain
+    // single byte ascii characters
+    let hash = &head.id[..SHORT_HASH_LENGTH];
+    let force = if event.forced { "force-" } else { "" };
+
+    let mut message = format!("[{}] {} {}pushed", event.repository.name, pusher, force);
+
+    let url: Url;
+
+    if commits.len() == 1 {
+        write!(message, " {}", hash).unwrap();
+        url = head.url;
+    } else {
+        write!(message, " {} commits", commits.len()).unwrap();
+
+        let distinct_count = commits.iter().filter(|c| c.distinct).count();
+        if distinct_count != commits.len() {
+            write!(message, " ({} distinct)", distinct_count).unwrap();
+        }
+
+        write!(message, " including {}", hash).unwrap();
+
+        url = event.compare;
+    }
+
+    let branch = event
+        .r#ref
+        .rsplit_once('/')
+        .expect("couldn't find branch name")
+        .1;
+
+    write!(message, " on").unwrap();
+    if event.created {
+        write!(message, " new").unwrap();
+    }
+    write!(message, " {}{}", BRANCH, branch).unwrap();
+
+    write!(message, " {} {}", SEPARATOR, url).unwrap();
 
     Some(Response {
         message,

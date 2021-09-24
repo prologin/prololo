@@ -9,6 +9,7 @@ mod issues;
 mod pull_request;
 mod pull_request_review;
 mod pull_request_review_comment;
+mod push;
 mod types;
 
 pub use create::*;
@@ -17,6 +18,7 @@ pub use issues::*;
 pub use pull_request::*;
 pub use pull_request_review::*;
 pub use pull_request_review_comment::*;
+pub use push::*;
 pub use types::*;
 
 #[derive(Debug)]
@@ -27,7 +29,7 @@ pub enum GitHubEvent {
     PullRequest(PullRequestEvent),
     PullRequestReview(PullRequestReviewEvent),
     PullRequestReviewComment(PullRequestReviewCommentEvent),
-    Push,
+    Push(PushEvent),
 }
 
 #[derive(Debug, Deserialize)]

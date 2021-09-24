@@ -38,8 +38,8 @@ impl GitHubEventType {
             Self::PullRequestReviewComment => {
                 GitHubEvent::PullRequestReviewComment(serde_json::from_str(&payload.0)?)
             }
+            Self::Push => GitHubEvent::Push(serde_json::from_str(&payload.0)?),
             Self::Unknown => bail!("unknown event type"),
-            _ => bail!("not implemented yet"),
         })
     }
 }
