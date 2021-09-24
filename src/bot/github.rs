@@ -3,7 +3,10 @@ use std::fmt::Write;
 use crate::{
     bot::Response,
     webhooks::{
-        github::{CreateEvent, IssueCommentEvent, IssuesEvent, PullRequestEvent, RefType},
+        github::{
+            CreateEvent, IssueCommentEvent, IssuesEvent, PullRequestEvent, PullRequestReviewEvent,
+            RefType,
+        },
         GitHubEvent,
     },
 };
@@ -17,6 +20,7 @@ pub fn handle_github_event(event: GitHubEvent) -> anyhow::Result<Option<Response
         GitHubEvent::IssueComment(event) => handle_issue_comment(event),
         GitHubEvent::Push => todo!(),
         GitHubEvent::PullRequest(event) => handle_pull_request(event),
+        GitHubEvent::PullRequestReview(event) => handle_pull_request_review(event),
     };
 
     Ok(response)
@@ -180,6 +184,53 @@ fn handle_pull_request(event: PullRequestEvent) -> Option<Response> {
     }
 
     write!(message, " {} {}", SEPARATOR, pr.html_url).unwrap();
+
+    Some(Response {
+        message,
+        repo: Some(event.repository.full_name),
+    })
+}
+
+fn handle_pull_request_review(event: PullRequestReviewEvent) -> Option<Response> {
+    let action = event.action;
+    let review = event.review;
+    let reviewer = review.user.login;
+    let pr = event.pull_request;
+
+    let state = review.state;
+
+    let decision = match state.to_lowercase().as_str() {
+        "approved" => "approved",
+        "changes_requested" => "requested changes on",
+        // FIXME: couldn't find the value of state for comment reviews, find out what it is and make
+        //        sure there's a proper error in other cases
+        _ => "commented on",
+    };
+
+    let mut message = format!("[{}] {}", event.repository.name, event.sender.login);
+
+    match action.as_str() {
+        "submitted" => write!(message, " {} {}", decision, pr).unwrap(),
+
+        // ignored, too verbose
+        "edited" => return None,
+
+        "dismissed" => {
+            write!(message, " dismissed ").unwrap();
+
+            if event.sender.login == reviewer {
+                write!(message, "their").unwrap();
+            } else {
+                write!(message, "{}'s", reviewer).unwrap();
+            };
+
+            write!(message, " review for {} (they {} the PR)", pr, decision).unwrap();
+        }
+
+        _ => return None, // FIXME log error
+    }
+
+    write!(message, " {} {}", SEPARATOR, review.html_url).unwrap();
 
     Some(Response {
         message,
