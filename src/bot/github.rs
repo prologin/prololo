@@ -176,7 +176,14 @@ fn handle_pull_request(event: PullRequestEvent) -> Option<Response> {
         }
 
         "closed" => {
-            let decision = if pr.merged { "merged" } else { "closed" };
+            let decision = if pr
+                .merged
+                .expect("PR should always have a merged field in this case")
+            {
+                "merged"
+            } else {
+                "closed"
+            };
             write!(message, " {} {}", decision, pr).unwrap();
         }
 

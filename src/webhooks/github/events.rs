@@ -87,7 +87,7 @@ pub struct PullRequest {
     pub requested_reviewers: Vec<GitHubUser>,
     pub base: PrRef,
     pub head: PrRef,
-    pub merged: bool,
+    pub merged: Option<bool>,
 }
 
 impl Display for PullRequest {
