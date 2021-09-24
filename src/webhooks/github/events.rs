@@ -6,11 +6,13 @@ use url::Url;
 mod create;
 mod issue_comment;
 mod issues;
+mod pull_request;
 mod types;
 
 pub use create::*;
 pub use issue_comment::*;
 pub use issues::*;
+pub use pull_request::*;
 pub use types::*;
 
 #[derive(Debug)]
@@ -18,6 +20,7 @@ pub enum GitHubEvent {
     Create(CreateEvent),
     IssueComment(IssueCommentEvent),
     Issues(IssuesEvent),
+    PullRequest(PullRequestEvent),
     Push,
 }
 
@@ -70,4 +73,31 @@ pub struct Milestone {
 pub struct Comment {
     pub html_url: Url,
     pub body: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct PullRequest {
+    pub number: u64,
+    pub html_url: Url,
+    pub title: String,
+    pub user: GitHubUser,
+    pub requested_reviewers: Vec<GitHubUser>,
+    pub base: PrRef,
+    pub head: PrRef,
+    pub merged: bool,
+}
+
+impl Display for PullRequest {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "PR #{}: {} by {}",
+            self.number, self.title, self.user.login
+        )
+    }
+}
+
+#[derive(Debug, Deserialize)]
+pub struct PrRef {
+    pub r#ref: String,
 }
