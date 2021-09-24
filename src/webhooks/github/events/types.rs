@@ -17,6 +17,7 @@ pub enum GitHubEventType {
     IssueComment,
     PullRequest,
     PullRequestReview,
+    PullRequestReviewComment,
     Push,
     Unknown,
 }
@@ -33,6 +34,9 @@ impl GitHubEventType {
             Self::PullRequest => GitHubEvent::PullRequest(serde_json::from_str(&payload.0)?),
             Self::PullRequestReview => {
                 GitHubEvent::PullRequestReview(serde_json::from_str(&payload.0)?)
+            }
+            Self::PullRequestReviewComment => {
+                GitHubEvent::PullRequestReviewComment(serde_json::from_str(&payload.0)?)
             }
             Self::Unknown => bail!("unknown event type"),
             _ => bail!("not implemented yet"),

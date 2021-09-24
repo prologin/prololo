@@ -4,8 +4,8 @@ use crate::{
     bot::Response,
     webhooks::{
         github::{
-            CreateEvent, IssueCommentEvent, IssuesEvent, PullRequestEvent, PullRequestReviewEvent,
-            RefType,
+            CreateEvent, IssueCommentEvent, IssuesEvent, PullRequestEvent,
+            PullRequestReviewCommentEvent, PullRequestReviewEvent, RefType,
         },
         GitHubEvent,
     },
@@ -21,6 +21,7 @@ pub fn handle_github_event(event: GitHubEvent) -> anyhow::Result<Option<Response
         GitHubEvent::Push => todo!(),
         GitHubEvent::PullRequest(event) => handle_pull_request(event),
         GitHubEvent::PullRequestReview(event) => handle_pull_request_review(event),
+        GitHubEvent::PullRequestReviewComment(event) => handle_pull_request_review_comment(event),
     };
 
     Ok(response)
@@ -238,6 +239,38 @@ fn handle_pull_request_review(event: PullRequestReviewEvent) -> Option<Response>
     }
 
     write!(message, " {} {}", SEPARATOR, review.html_url).unwrap();
+
+    Some(Response {
+        message,
+        repo: Some(event.repository.full_name),
+    })
+}
+
+fn handle_pull_request_review_comment(event: PullRequestReviewCommentEvent) -> Option<Response> {
+    let action = event.action;
+    let comment = event.comment;
+    let pr = event.pull_request;
+
+    if comment.pull_request_review_id.is_some() {
+        // Inline code comment is linked to a PR review, no need to display a message for every
+        // comment in that review.
+        //
+        // Global review event will be handled by the `pull_request_review` event.
+        return None;
+    }
+
+    let mut message = format!("[{}] {}", event.repository.name, event.sender.login);
+
+    match action.as_str() {
+        "created" => write!(message, " commented on {} {}", pr, comment.location()).unwrap(),
+
+        // ignored, too verbose
+        "edited" | "deleted" => return None,
+
+        _ => return None, // FIXME log error
+    }
+
+    write!(message, " {} {}", SEPARATOR, comment.html_url).unwrap();
 
     Some(Response {
         message,
