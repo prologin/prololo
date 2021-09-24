@@ -3,6 +3,8 @@ use std::fmt::Display;
 use serde::Deserialize;
 use url::Url;
 
+use crate::bot::utils::shorten_content;
+
 mod create;
 mod issue_comment;
 mod issues;
@@ -71,7 +73,7 @@ pub struct Issue {
 
 impl Display for Issue {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "#{} ({})", self.number, self.title)
+        write!(f, "#{} ({})", self.number, shorten_content(&self.title))
     }
 }
 
@@ -119,7 +121,9 @@ impl Display for PullRequest {
         write!(
             f,
             "PR #{}: {} by {}",
-            self.number, self.title, self.user.login
+            self.number,
+            shorten_content(&self.title),
+            self.user.login
         )
     }
 }
