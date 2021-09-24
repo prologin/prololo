@@ -82,6 +82,22 @@ pub struct Milestone {
 pub struct Comment {
     pub html_url: Url,
     pub body: String,
+    pub pull_request_review_id: Option<u64>,
+    pub path: Option<String>,
+    pub position: Option<u64>,
+}
+
+impl Comment {
+    pub fn location(&self) -> Option<String> {
+        self.path.as_ref().map(|path| {
+            format!(
+                "on file {} @ {}",
+                path,
+                self.position
+                    .expect("comment on file without specific position"),
+            )
+        })
+    }
 }
 
 #[derive(Debug, Deserialize)]

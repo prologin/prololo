@@ -273,7 +273,14 @@ fn handle_pull_request_review_comment(event: PullRequestReviewCommentEvent) -> O
     let mut message = format!("[{}] {}", event.repository.name, event.sender.login);
 
     match action.as_str() {
-        "created" => write!(message, " commented on {} {}", pr, comment.location()).unwrap(),
+        "created" => {
+            write!(message, " commented on {}", pr,).unwrap();
+
+            // comment can be on a specific line of a file
+            if let Some(location) = comment.location() {
+                write!(message, " {}", location,).unwrap();
+            }
+        }
 
         // ignored, too verbose
         "edited" | "deleted" => return None,
