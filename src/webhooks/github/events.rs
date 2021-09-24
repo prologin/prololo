@@ -62,6 +62,9 @@ pub struct Issue {
     pub html_url: Url,
     pub title: String,
     pub milestone: Option<Milestone>,
+    // an issue can be a PR, in this case the object contains a `pull_request` key with urls to the
+    // PR
+    pub pull_request: Option<PullRequestLinks>,
 }
 
 impl Display for Issue {
@@ -106,4 +109,9 @@ impl Display for PullRequest {
 #[derive(Debug, Deserialize)]
 pub struct PrRef {
     pub r#ref: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct PullRequestLinks {
+    html_url: Url,
 }

@@ -117,10 +117,21 @@ fn handle_issue_comment(event: IssueCommentEvent) -> Option<Response> {
     let comment = event.comment;
     let issue = event.issue;
 
+    // Comments left on PRs are considered as issue comments as well
+    let issue_or_pr = match issue.pull_request {
+        Some(_) => "PR",
+        None => "issue",
+    };
+
     let mut message = format!("[{}] {}", event.repository.name, event.sender.login);
 
     match action.as_str() {
-        "created" => write!(message, " commented on issue {}: {}", issue, comment.body).unwrap(),
+        "created" => write!(
+            message,
+            " commented on {} {}: {}",
+            issue_or_pr, issue, comment.body
+        )
+        .unwrap(),
 
         // too verbose, don't log that
         "edited" | "deleted" => return None,
