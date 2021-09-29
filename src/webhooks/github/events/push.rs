@@ -20,4 +20,14 @@ pub struct Commit {
     pub id: String,
     pub url: Url,
     pub distinct: bool,
+    pub message: String,
+}
+
+impl Commit {
+    pub fn title(&self) -> &str {
+        self.message
+            .lines()
+            .next()
+            .expect("body has at least one line")
+    }
 }

@@ -319,11 +319,11 @@ fn handle_push(event: PushEvent) -> Option<Response> {
 
     let mut message = format!("[{}] {} {}pushed", event.repository.name, pusher, force);
 
-    let url: Url;
+    let url: &Url;
 
     if commits.len() == 1 {
         write!(message, " {}", hash).unwrap();
-        url = head.url;
+        url = &head.url;
     } else {
         write!(message, " {} commits", commits.len()).unwrap();
 
@@ -334,7 +334,7 @@ fn handle_push(event: PushEvent) -> Option<Response> {
 
         write!(message, " including {}", hash).unwrap();
 
-        url = event.compare;
+        url = &event.compare;
     }
 
     let branch = event
@@ -347,7 +347,14 @@ fn handle_push(event: PushEvent) -> Option<Response> {
     if event.created {
         write!(message, " new").unwrap();
     }
-    write!(message, " {}{}", BRANCH, branch).unwrap();
+    write!(
+        message,
+        " {}{}: {}",
+        BRANCH,
+        branch,
+        shorten_content(head.title())
+    )
+    .unwrap();
 
     write!(message, " {} {}", SEPARATOR, url).unwrap();
 
