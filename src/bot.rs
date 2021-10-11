@@ -8,10 +8,7 @@ use anyhow::{anyhow, Context};
 use matrix_sdk::{
     room::Room,
     ruma::{
-        events::{
-            room::{member::MemberEventContent, message::MessageEventContent},
-            AnyMessageEventContent, StrippedStateEvent,
-        },
+        events::{room::member::MemberEventContent, AnyMessageEventContent, StrippedStateEvent},
         RoomId,
     },
     Client, ClientConfig, Session, SyncSettings,
@@ -28,6 +25,7 @@ mod handlers;
 use handlers::autojoin_authorized_rooms;
 
 mod message_builder;
+use message_builder::MessageBuilder;
 
 pub(crate) mod utils;
 
@@ -141,8 +139,12 @@ impl Prololo {
                 })
             })?;
 
-        trace!("sending message `{}` to room `{}`", message, room.room_id());
-        let message = AnyMessageEventContent::RoomMessage(MessageEventContent::text_plain(message));
+        trace!(
+            "sending message `{}` to room `{}`",
+            message.plain,
+            room.room_id()
+        );
+        let message = AnyMessageEventContent::RoomMessage(message.into());
         room.send(message, None).await?;
 
         Ok(())
@@ -188,6 +190,6 @@ impl Prololo {
 }
 
 pub struct Response {
-    pub message: String,
+    pub message: MessageBuilder,
     pub repo: Option<String>,
 }
