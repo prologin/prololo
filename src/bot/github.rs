@@ -148,25 +148,23 @@ fn handle_issue_comment(event: IssueCommentEvent) -> Option<Response> {
 
     message.tag(&event.repository.name);
 
-    write!(&mut message, " {}", event.sender.login).unwrap();
+    write!(&mut message, " {} ", event.sender.login).unwrap();
 
     match action.as_str() {
-        "created" => write!(
-            message,
-            " commented on {} {}: {}",
-            issue_or_pr,
-            issue,
-            shorten_content(&comment.body)
-        )
-        .unwrap(),
+        "created" => {
+            message.link("commented", comment.html_url);
+            write!(message, " on {} ", issue_or_pr,).unwrap();
+
+            message.link(&format!("{}", issue), issue.html_url);
+
+            write!(message, ": {}", shorten_content(&comment.body),).unwrap();
+        }
 
         // too verbose, don't log that
         "edited" | "deleted" => return None,
 
         _ => return None, // FIXME log error
     }
-
-    write!(message, " {} {}", SEPARATOR, comment.html_url).unwrap();
 
     Some(Response {
         message,
@@ -402,7 +400,7 @@ fn handle_push(event: PushEvent) -> Option<Response> {
 
 #[cfg(test)]
 mod tests {
-    use crate::webhooks::github::{GitHubUser, Issue, Repository};
+    use crate::webhooks::github::{Comment, GitHubUser, Issue, Repository};
 
     use super::*;
 
@@ -470,6 +468,50 @@ mod tests {
         assert_eq!(
             message.html,
             r#"<b>[test-repo]</b> test-user opened issue <a href="https://github.com/test-user/test-repo/issues/42">#42 (Test Issue Title)</a>"#,
+        );
+    }
+
+    #[test]
+    fn test_handle_issue_comment() {
+        let event = IssueCommentEvent {
+            sender: GitHubUser {
+                login: "test-user".to_string(),
+                id: 42,
+            },
+            repository: Repository {
+                name: "test-repo".to_string(),
+                full_name: "test-user/test-repo".to_string(),
+                html_url: Url::parse("https://github.com/test-user/test-repo").unwrap(),
+            },
+            issue: Issue {
+                number: 42,
+                html_url: Url::parse("https://github.com/test-user/test-repo/issues/42").unwrap(),
+                title: "Test Issue Title".to_string(),
+                milestone: None,
+                pull_request: None,
+            },
+            action: "created".to_string(),
+            comment: Comment {
+                html_url: Url::parse("https://github.com/test-user/test-repo/issues/42#issue-42424242").unwrap(),
+                body: "This content is very long, longer than our character limit, so it will definitely be truncated".to_string(),
+                pull_request_review_id: None,
+                path: None,
+                position: None,
+            },
+        };
+
+        let response = handle_issue_comment(event).expect("should have a response");
+
+        let message = response.message;
+
+        assert_eq!(
+            message.plain,
+            "[test-repo] test-user commented on issue #42 (Test Issue Title): This content is very long, longer than our character limit, so it will d…",
+        );
+
+        assert_eq!(
+            message.html,
+            r#"<b>[test-repo]</b> test-user <a href="https://github.com/test-user/test-repo/issues/42#issue-42424242">commented</a> on issue <a href="https://github.com/test-user/test-repo/issues/42">#42 (Test Issue Title)</a>: This content is very long, longer than our character limit, so it will d…"#,
         );
     }
 }
