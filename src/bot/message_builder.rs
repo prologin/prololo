@@ -1,6 +1,7 @@
 use std::fmt::Write;
 
 use matrix_sdk::ruma::events::room::message::MessageEventContent;
+use url::Url;
 
 enum Style {
     Bold,
@@ -46,6 +47,14 @@ impl MessageBuilder {
         self.bold();
         write!(self, "[{}]", tag).unwrap();
         self.close_last();
+    }
+
+    pub fn link(&mut self, text: &str, href: Url) {
+        // NOTE: we consider that the URL is bonus information, not needed in plain text mode to
+        // understand the message
+        self.plain.push_str(text);
+
+        write!(self.html, r#"<a href="{}">{}</a>"#, href, text).unwrap();
     }
 
     /// Panics if called with no style in the stack
