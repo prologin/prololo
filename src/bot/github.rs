@@ -3,7 +3,7 @@ use std::fmt::Write;
 use url::Url;
 
 use crate::{
-    bot::{utils::shorten_content, Response},
+    bot::{message_builder::MessageBuilder, utils::shorten_content, Response},
     webhooks::{
         github::{
             CreateEvent, IssueCommentEvent, IssuesEvent, PullRequestEvent,
@@ -32,20 +32,27 @@ pub fn handle_github_event(event: GitHubEvent) -> anyhow::Result<Option<Response
 }
 
 fn handle_create(event: CreateEvent) -> Option<Response> {
-    let message = match event.ref_type {
+    let mut message = MessageBuilder::new();
+
+    match event.ref_type {
         RefType::Branch => return None,
-        RefType::Tag => format!(
-            "[{}] {} created tag {} {} {}",
-            event.repository.name,
-            event.sender.login,
-            event.r#ref,
-            SEPARATOR,
-            event.repository.ref_url(&event.r#ref)
-        ),
+        RefType::Tag => {
+            message.tag(&event.repository.name);
+
+            write!(
+                &mut message,
+                " {} created tag {} {} {}",
+                event.sender.login,
+                event.r#ref,
+                SEPARATOR,
+                event.repository.ref_url(&event.r#ref)
+            )
+            .unwrap();
+        }
     };
 
     Some(Response {
-        message,
+        message: message,
         repo: Some(event.repository.full_name),
     })
 }
@@ -54,7 +61,11 @@ fn handle_issues(event: IssuesEvent) -> Option<Response> {
     let action = event.action;
     let issue = event.issue;
 
-    let mut message = format!("[{}] {}", event.repository.name, event.sender.login);
+    let mut message = MessageBuilder::new();
+
+    message.tag(&event.repository.name);
+
+    write!(&mut message, " {}", event.sender.login).unwrap();
 
     match action.as_str() {
         "assigned" | "unassigned" => {
@@ -127,7 +138,11 @@ fn handle_issue_comment(event: IssueCommentEvent) -> Option<Response> {
         None => "issue",
     };
 
-    let mut message = format!("[{}] {}", event.repository.name, event.sender.login);
+    let mut message = MessageBuilder::new();
+
+    message.tag(&event.repository.name);
+
+    write!(&mut message, " {}", event.sender.login).unwrap();
 
     match action.as_str() {
         "created" => write!(
@@ -157,7 +172,11 @@ fn handle_pull_request(event: PullRequestEvent) -> Option<Response> {
     let action = event.action;
     let pr = event.pull_request;
 
-    let mut message = format!("[{}] {}", event.repository.name, event.sender.login);
+    let mut message = MessageBuilder::new();
+
+    message.tag(&event.repository.name);
+
+    write!(&mut message, " {}", event.sender.login).unwrap();
 
     match action.as_str() {
         "assigned" | "unassigned" => {
@@ -232,7 +251,10 @@ fn handle_pull_request_review(event: PullRequestReviewEvent) -> Option<Response>
         _ => "commented on",
     };
 
-    let mut message = format!("[{}] {}", event.repository.name, event.sender.login);
+    let mut message = MessageBuilder::new();
+
+    message.tag(&event.repository.name);
+    write!(&mut message, " {}", event.sender.login).unwrap();
 
     match action.as_str() {
         "submitted" => write!(message, " {} {}", decision, pr).unwrap(),
@@ -276,7 +298,11 @@ fn handle_pull_request_review_comment(event: PullRequestReviewCommentEvent) -> O
         return None;
     }
 
-    let mut message = format!("[{}] {}", event.repository.name, event.sender.login);
+    let mut message = MessageBuilder::new();
+
+    message.tag(&event.repository.name);
+
+    write!(&mut message, " {}", event.sender.login).unwrap();
 
     match action.as_str() {
         "created" => {
@@ -317,7 +343,11 @@ fn handle_push(event: PushEvent) -> Option<Response> {
     let hash = &head.id[..SHORT_HASH_LENGTH];
     let force = if event.forced { "force-" } else { "" };
 
-    let mut message = format!("[{}] {} {}pushed", event.repository.name, pusher, force);
+    let mut message = MessageBuilder::new();
+
+    message.tag(&event.repository.name);
+
+    write!(&mut message, " {} {}pushed", pusher, force).unwrap();
 
     let url: &Url;
 
@@ -362,4 +392,42 @@ fn handle_push(event: PushEvent) -> Option<Response> {
         message,
         repo: Some(event.repository.full_name),
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::webhooks::github::{GitHubUser, Repository};
+
+    use super::*;
+
+    #[test]
+    fn test_handle_create() {
+        let event = CreateEvent {
+            ref_type: RefType::Tag,
+            repository: Repository {
+                name: "test-repo".to_string(),
+                full_name: "test-user/test-repo".to_string(),
+                html_url: Url::parse("https://github.com/test-user/test-repo").unwrap(),
+            },
+            sender: GitHubUser {
+                login: "test-user".to_string(),
+                id: 42,
+            },
+            r#ref: "test-tag".to_string(),
+        };
+
+        let response = handle_create(event).expect("should have a response");
+
+        let message = response.message;
+
+        assert_eq!(
+            message.plain,
+            "[test-repo] test-user created tag test-tag ⋅ https://github.com/test-user/test-repo/tree/test-tag",
+        );
+
+        assert_eq!(
+            message.html,
+            "<b>[test-repo]</b> test-user created tag test-tag ⋅ https://github.com/test-user/test-repo/tree/test-tag",
+        );
+    }
 }
