@@ -1,5 +1,6 @@
 use std::fmt::Write;
 
+use tracing::error;
 use url::Url;
 
 use crate::{
@@ -39,15 +40,20 @@ fn handle_create(event: CreateEvent) -> Option<Response> {
         RefType::Tag => {
             message.tag(&event.repository.name);
 
-            write!(
-                &mut message,
-                " {} created tag {} {} {}",
-                event.sender.login,
-                event.r#ref,
-                SEPARATOR,
-                event.repository.ref_url(&event.r#ref)
-            )
-            .unwrap();
+            write!(&mut message, " {} created tag ", event.sender.login,).unwrap();
+
+            let ref_url = match event.repository.ref_url(&event.r#ref) {
+                Ok(url) => url,
+                Err(e) => {
+                    error!(
+                        "couldn't build ref url for tag {} in repo {}",
+                        event.r#ref, event.repository.full_name
+                    );
+                    event.repository.html_url
+                }
+            };
+            println!("{}", ref_url);
+            message.link(&event.r#ref, ref_url)
         }
     };
 
@@ -422,12 +428,12 @@ mod tests {
 
         assert_eq!(
             message.plain,
-            "[test-repo] test-user created tag test-tag ⋅ https://github.com/test-user/test-repo/tree/test-tag",
+            "[test-repo] test-user created tag test-tag",
         );
 
         assert_eq!(
             message.html,
-            "<b>[test-repo]</b> test-user created tag test-tag ⋅ https://github.com/test-user/test-repo/tree/test-tag",
+            r#"<b>[test-repo]</b> test-user created tag <a href="https://github.com/test-user/test-repo/tree/test-tag">test-tag</a>"#,
         );
     }
 }

@@ -55,8 +55,11 @@ pub struct Repository {
 }
 
 impl Repository {
-    pub fn ref_url(&self, r#ref: &str) -> String {
-        format!("https://github.com/{}/tree/{}", self.full_name, r#ref)
+    pub fn ref_url(&self, r#ref: &str) -> Result<Url, url::ParseError> {
+        Url::parse(&format!(
+            "https://github.com/{}/tree/{}",
+            self.full_name, r#ref
+        ))
     }
 }
 
