@@ -193,7 +193,8 @@ fn handle_pull_request(event: PullRequestEvent) -> Option<Response> {
             } else {
                 write!(message, " {} {}", action, assignee.login).unwrap();
             }
-            write!(message, " to {}", pr).unwrap();
+            write!(message, " to ").unwrap();
+            message.link(&format!("{}", pr), pr.html_url);
         }
 
         "review_requested" => {
@@ -204,7 +205,8 @@ fn handle_pull_request(event: PullRequestEvent) -> Option<Response> {
                 .collect::<Vec<&str>>()
                 .join(", ");
 
-            write!(message, " requested {} to review {}", reviewers, pr).unwrap();
+            write!(message, " requested {} to review ", reviewers).unwrap();
+            message.link(&format!("{}", pr), pr.html_url);
         }
 
         // too verbose, don't log that
@@ -213,7 +215,9 @@ fn handle_pull_request(event: PullRequestEvent) -> Option<Response> {
         "opened" | "edited" | "reopened" => {
             let base = &pr.base.r#ref;
             let head = &pr.head.r#ref;
-            write!(message, " {} {} ({}...{})", action, pr, base, head).unwrap();
+            write!(message, " {} ", action).unwrap();
+            message.link(&format!("{}", pr), pr.html_url);
+            write!(message, " ({}...{})", base, head).unwrap();
         }
 
         "closed" => {
@@ -225,13 +229,12 @@ fn handle_pull_request(event: PullRequestEvent) -> Option<Response> {
             } else {
                 "closed"
             };
-            write!(message, " {} {}", decision, pr).unwrap();
+            write!(message, " {} ", decision).unwrap();
+            message.link(&format!("{}", pr), pr.html_url);
         }
 
         _ => return None, // FIXME log error
     }
-
-    write!(message, " {} {}", SEPARATOR, pr.html_url).unwrap();
 
     Some(Response {
         message,
@@ -400,7 +403,7 @@ fn handle_push(event: PushEvent) -> Option<Response> {
 
 #[cfg(test)]
 mod tests {
-    use crate::webhooks::github::{Comment, GitHubUser, Issue, Repository};
+    use crate::webhooks::github::{Comment, GitHubUser, Issue, PrRef, PullRequest, Repository};
 
     use super::*;
 
@@ -513,5 +516,47 @@ mod tests {
             message.html,
             r#"<b>[test-repo]</b> test-user <a href="https://github.com/test-user/test-repo/issues/42#issue-42424242">commented</a> on issue <a href="https://github.com/test-user/test-repo/issues/42">#42 (Test Issue Title)</a>: This content is very long, longer than our character limit, so it will d…"#,
         );
+    }
+
+    #[test]
+    fn test_handle_pull_request() {
+        let event = PullRequestEvent {
+            sender: GitHubUser {
+                login: "test-user".to_string(),
+                id: 42,
+            },
+            repository: Repository {
+                name: "test-repo".to_string(),
+                full_name: "test-user/test-repo".to_string(),
+                html_url: Url::parse("https://github.com/test-user/test-repo").unwrap(),
+            },
+            pull_request: PullRequest {
+                number: 42,
+                html_url: Url::parse("https://github.com/test-user/test-repo/pull/42").unwrap(),
+                title: "Test PR Title".to_string(),
+                user: GitHubUser {
+                    login: "test-user".to_string(),
+                    id: 42,
+                },
+                requested_reviewers: vec![],
+                base: PrRef {
+                    r#ref: "main".to_string(),
+                },
+                head: PrRef {
+                    r#ref: "test".to_string(),
+                },
+                merged: None,
+            },
+            action: "opened".to_string(),
+            assignee: None,
+        };
+
+        let response = handle_pull_request(event).expect("should have a response");
+
+        let message = response.message;
+
+        assert_eq!(message.plain, "[test-repo] test-user opened PR #42: Test PR Title by test-user (main...test)",);
+
+        assert_eq!(message.html, r#"<b>[test-repo]</b> test-user opened <a href="https://github.com/test-user/test-repo/pull/42">PR #42: Test PR Title by test-user</a> (main...test)"#,);
     }
 }
