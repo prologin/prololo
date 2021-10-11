@@ -84,14 +84,14 @@ fn handle_issues(event: IssuesEvent) -> Option<Response> {
             } else {
                 write!(message, " {} {}", action, assignee.login).unwrap();
             }
-            write!(message, " to {}", issue).unwrap();
+            write!(message, " to ").unwrap();
         }
 
         // too verbose, don't log that
         "labeled" | "unlabeled" => return None,
 
         "opened" | "deleted" | "pinned" | "unpinned" | "reopened" | "closed" | "locked"
-        | "unlocked" | "transferred" => write!(message, " {} issue {}", action, issue).unwrap(),
+        | "unlocked" | "transferred" => write!(message, " {} issue ", action).unwrap(),
 
         "edited" => {
             let changes = event
@@ -108,7 +108,7 @@ fn handle_issues(event: IssuesEvent) -> Option<Response> {
                 }
                 write!(message, " body").unwrap();
             }
-            write!(message, " of issue {}", issue).unwrap();
+            write!(message, " of issue ").unwrap();
         }
 
         "milestoned" => {
@@ -116,16 +116,16 @@ fn handle_issues(event: IssuesEvent) -> Option<Response> {
                 .milestone
                 .as_ref()
                 .expect("milestoned issue should have a milestone");
-            write!(message, " added milestone {} to {}", milestone.title, issue).unwrap();
+            write!(message, " added milestone {} to ", milestone.title).unwrap();
         }
 
         // https://github.com/isaacs/github/issues/880
-        "demilestoned" => write!(message, " removed the milestone from {}", issue).unwrap(),
+        "demilestoned" => write!(message, " removed the milestone from ").unwrap(),
 
         _ => return None, // FIXME log error
     }
 
-    write!(message, " {} {}", SEPARATOR, issue.html_url).unwrap();
+    message.link(&format!("{}", issue), issue.html_url);
 
     Some(Response {
         message,
@@ -402,7 +402,7 @@ fn handle_push(event: PushEvent) -> Option<Response> {
 
 #[cfg(test)]
 mod tests {
-    use crate::webhooks::github::{GitHubUser, Repository};
+    use crate::webhooks::github::{GitHubUser, Issue, Repository};
 
     use super::*;
 
@@ -426,14 +426,50 @@ mod tests {
 
         let message = response.message;
 
-        assert_eq!(
-            message.plain,
-            "[test-repo] test-user created tag test-tag",
-        );
+        assert_eq!(message.plain, "[test-repo] test-user created tag test-tag",);
 
         assert_eq!(
             message.html,
             r#"<b>[test-repo]</b> test-user created tag <a href="https://github.com/test-user/test-repo/tree/test-tag">test-tag</a>"#,
+        );
+    }
+
+    #[test]
+    fn test_handle_issues() {
+        let event = IssuesEvent {
+            repository: Repository {
+                name: "test-repo".to_string(),
+                full_name: "test-user/test-repo".to_string(),
+                html_url: Url::parse("https://github.com/test-user/test-repo").unwrap(),
+            },
+            sender: GitHubUser {
+                login: "test-user".to_string(),
+                id: 42,
+            },
+            issue: Issue {
+                number: 42,
+                html_url: Url::parse("https://github.com/test-user/test-repo/issues/42").unwrap(),
+                title: "Test Issue Title".to_string(),
+                milestone: None,
+                pull_request: None,
+            },
+            changes: None,
+            assignee: None,
+            action: "opened".to_string(),
+        };
+
+        let response = handle_issues(event).expect("should have a response");
+
+        let message = response.message;
+
+        assert_eq!(
+            message.plain,
+            "[test-repo] test-user opened issue #42 (Test Issue Title)",
+        );
+
+        assert_eq!(
+            message.html,
+            r#"<b>[test-repo]</b> test-user opened issue <a href="https://github.com/test-user/test-repo/issues/42">#42 (Test Issue Title)</a>"#,
         );
     }
 }
