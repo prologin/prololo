@@ -53,7 +53,7 @@ fn handle_create(event: CreateEvent) -> Option<Response> {
                 }
             };
             println!("{}", ref_url);
-            message.link(&event.r#ref, ref_url)
+            message.link(&event.r#ref, &ref_url)
         }
     };
 
@@ -125,7 +125,7 @@ fn handle_issues(event: IssuesEvent) -> Option<Response> {
         _ => return None, // FIXME log error
     }
 
-    message.link(&format!("{}", issue), issue.html_url);
+    message.link(&format!("{}", issue), &issue.html_url);
 
     Some(Response {
         message,
@@ -152,10 +152,10 @@ fn handle_issue_comment(event: IssueCommentEvent) -> Option<Response> {
 
     match action.as_str() {
         "created" => {
-            message.link("commented", comment.html_url);
+            message.link("commented", &comment.html_url);
             write!(message, " on {} ", issue_or_pr,).unwrap();
 
-            message.link(&format!("{}", issue), issue.html_url);
+            message.link(&format!("{}", issue), &issue.html_url);
 
             write!(message, ": {}", shorten_content(&comment.body),).unwrap();
         }
@@ -194,7 +194,7 @@ fn handle_pull_request(event: PullRequestEvent) -> Option<Response> {
                 write!(message, " {} {}", action, assignee.login).unwrap();
             }
             write!(message, " to ").unwrap();
-            message.link(&format!("{}", pr), pr.html_url);
+            message.link(&format!("{}", pr), &pr.html_url);
         }
 
         "review_requested" => {
@@ -206,7 +206,7 @@ fn handle_pull_request(event: PullRequestEvent) -> Option<Response> {
                 .join(", ");
 
             write!(message, " requested {} to review ", reviewers).unwrap();
-            message.link(&format!("{}", pr), pr.html_url);
+            message.link(&format!("{}", pr), &pr.html_url);
         }
 
         // too verbose, don't log that
@@ -216,7 +216,7 @@ fn handle_pull_request(event: PullRequestEvent) -> Option<Response> {
             let base = &pr.base.r#ref;
             let head = &pr.head.r#ref;
             write!(message, " {} ", action).unwrap();
-            message.link(&format!("{}", pr), pr.html_url);
+            message.link(&format!("{}", pr), &pr.html_url);
             write!(message, " ({}...{})", base, head).unwrap();
         }
 
@@ -230,7 +230,7 @@ fn handle_pull_request(event: PullRequestEvent) -> Option<Response> {
                 "closed"
             };
             write!(message, " {} ", decision).unwrap();
-            message.link(&format!("{}", pr), pr.html_url);
+            message.link(&format!("{}", pr), &pr.html_url);
         }
 
         _ => return None, // FIXME log error
@@ -266,7 +266,7 @@ fn handle_pull_request_review(event: PullRequestReviewEvent) -> Option<Response>
     match action.as_str() {
         "submitted" => {
             write!(message, " {} ", decision).unwrap();
-            message.link(&format!("{}", pr), pr.html_url);
+            message.link(&format!("{}", pr), &pr.html_url);
         }
 
         // ignored, too verbose
@@ -282,10 +282,10 @@ fn handle_pull_request_review(event: PullRequestReviewEvent) -> Option<Response>
                 write!(whose, "{}'s", reviewer).unwrap();
             };
 
-            message.link(&format!("{} review", whose), review.html_url);
+            message.link(&format!("{} review", whose), &review.html_url);
 
             write!(message, " for ").unwrap();
-            message.link(&format!("{}", pr), pr.html_url);
+            message.link(&format!("{}", pr), &pr.html_url);
             write!(message, " (they {} the PR)", decision).unwrap();
         }
 
@@ -315,11 +315,13 @@ fn handle_pull_request_review_comment(event: PullRequestReviewCommentEvent) -> O
 
     message.tag(&event.repository.name);
 
-    write!(&mut message, " {}", event.sender.login).unwrap();
+    write!(&mut message, " {} ", event.sender.login).unwrap();
 
     match action.as_str() {
         "created" => {
-            write!(message, " commented on {}", pr,).unwrap();
+            message.link("commented", &comment.html_url);
+            write!(message, " on ").unwrap();
+            message.link(&format!("{}", pr), &pr.html_url);
 
             // comment can be on a specific line of a file
             if let Some(location) = comment.location() {
@@ -332,8 +334,6 @@ fn handle_pull_request_review_comment(event: PullRequestReviewCommentEvent) -> O
 
         _ => return None, // FIXME log error
     }
-
-    write!(message, " {} {}", SEPARATOR, comment.html_url).unwrap();
 
     Some(Response {
         message,
@@ -626,6 +626,60 @@ mod tests {
         assert_eq!(
             message.html,
             r#"<b>[test-repo]</b> test-user dismissed <a href="https://github.com/test-user/test-repo/whatever">their review</a> for <a href="https://github.com/test-user/test-repo/pull/42">PR #42: Test PR Title by test-user</a> (they approved the PR)"#,
+        );
+    }
+
+    #[test]
+    fn test_handle_pull_request_review_comment() {
+        let event = PullRequestReviewCommentEvent {
+            sender: GitHubUser {
+                login: "test-user".to_string(),
+                id: 42,
+            },
+            repository: Repository {
+                name: "test-repo".to_string(),
+                full_name: "test-user/test-repo".to_string(),
+                html_url: Url::parse("https://github.com/test-user/test-repo").unwrap(),
+            },
+            pull_request: PullRequest {
+                number: 42,
+                html_url: Url::parse("https://github.com/test-user/test-repo/pull/42").unwrap(),
+                title: "Test PR Title".to_string(),
+                user: GitHubUser {
+                    login: "test-user".to_string(),
+                    id: 42,
+                },
+                requested_reviewers: vec![],
+                base: PrRef {
+                    r#ref: "main".to_string(),
+                },
+                head: PrRef {
+                    r#ref: "test".to_string(),
+                },
+                merged: None,
+            },
+            action: "created".to_string(),
+            comment: Comment {
+                html_url: Url::parse("https://github.com/test-user/test-repo/whatever").unwrap(),
+                body: "This content is very long, longer than our character limit, so it will definitely be truncated".to_string(),
+                pull_request_review_id: None,
+                path: None,
+                position: None,
+            },
+        };
+
+        let response = handle_pull_request_review_comment(event).expect("should have a response");
+
+        let message = response.message;
+
+        assert_eq!(
+            message.plain,
+            "[test-repo] test-user commented on PR #42: Test PR Title by test-user"
+        );
+
+        assert_eq!(
+            message.html,
+            r#"<b>[test-repo]</b> test-user <a href="https://github.com/test-user/test-repo/whatever">commented</a> on <a href="https://github.com/test-user/test-repo/pull/42">PR #42: Test PR Title by test-user</a>"#,
         );
     }
 }

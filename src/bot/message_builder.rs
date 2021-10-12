@@ -49,7 +49,7 @@ impl MessageBuilder {
         self.close_last();
     }
 
-    pub fn link(&mut self, text: &str, href: Url) {
+    pub fn link(&mut self, text: &str, href: &Url) {
         // NOTE: we consider that the URL is bonus information, not needed in plain text mode to
         // understand the message
         self.plain.push_str(text);
