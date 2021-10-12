@@ -15,7 +15,6 @@ use crate::{
 };
 
 const BRANCH: &str = "⊶";
-const SEPARATOR: &str = "⋅";
 const SHORT_HASH_LENGTH: usize = 7;
 
 pub fn handle_github_event(event: GitHubEvent) -> anyhow::Result<Option<Response>> {
@@ -46,8 +45,8 @@ fn handle_create(event: CreateEvent) -> Option<Response> {
                 Ok(url) => url,
                 Err(e) => {
                     error!(
-                        "couldn't build ref url for tag {} in repo {}",
-                        event.r#ref, event.repository.full_name
+                        "couldn't build ref url for tag {} in repo {}: {}",
+                        event.r#ref, event.repository.full_name, e
                     );
                     event.repository.html_url
                 }
@@ -360,25 +359,27 @@ fn handle_push(event: PushEvent) -> Option<Response> {
 
     message.tag(&event.repository.name);
 
-    write!(&mut message, " {} {}pushed", pusher, force).unwrap();
+    write!(&mut message, " {} {}pushed ", pusher, force).unwrap();
 
     let url: &Url;
+    let mut text = String::new();
 
     if commits.len() == 1 {
-        write!(message, " {}", hash).unwrap();
+        write!(text, "{}", hash).unwrap();
         url = &head.url;
     } else {
-        write!(message, " {} commits", commits.len()).unwrap();
+        write!(text, "{} commits", commits.len()).unwrap();
 
         let distinct_count = commits.iter().filter(|c| c.distinct).count();
         if distinct_count != commits.len() {
-            write!(message, " ({} distinct)", distinct_count).unwrap();
+            write!(text, " ({} distinct)", distinct_count).unwrap();
         }
 
-        write!(message, " including {}", hash).unwrap();
+        write!(text, " including {}", hash).unwrap();
 
         url = &event.compare;
     }
+    message.link(&text, url);
 
     let branch = event
         .r#ref
@@ -386,20 +387,24 @@ fn handle_push(event: PushEvent) -> Option<Response> {
         .expect("couldn't find branch name")
         .1;
 
-    write!(message, " on").unwrap();
+    write!(message, " on ").unwrap();
     if event.created {
-        write!(message, " new").unwrap();
+        write!(message, "new ").unwrap();
     }
-    write!(
-        message,
-        " {}{}: {}",
-        BRANCH,
-        branch,
-        shorten_content(head.title())
-    )
-    .unwrap();
 
-    write!(message, " {} {}", SEPARATOR, url).unwrap();
+    let ref_url = match event.repository.ref_url(branch) {
+        Ok(url) => url,
+        Err(e) => {
+            error!(
+                "couldn't build ref url for branch {} in repo {}: {}",
+                branch, event.repository.full_name, e
+            );
+            event.repository.html_url
+        }
+    };
+
+    message.link(&format!("{}{}", BRANCH, branch), &ref_url);
+    write!(message, ": {}", shorten_content(head.title())).unwrap();
 
     Some(Response {
         message,
@@ -410,7 +415,7 @@ fn handle_push(event: PushEvent) -> Option<Response> {
 #[cfg(test)]
 mod tests {
     use crate::webhooks::github::{
-        Comment, GitHubUser, Issue, PrRef, PullRequest, Repository, Review,
+        Comment, Commit, GitHubUser, Issue, PrRef, PullRequest, Repository, Review,
     };
 
     use super::*;
@@ -680,6 +685,64 @@ mod tests {
         assert_eq!(
             message.html,
             r#"<b>[test-repo]</b> test-user <a href="https://github.com/test-user/test-repo/whatever">commented</a> on <a href="https://github.com/test-user/test-repo/pull/42">PR #42: Test PR Title by test-user</a>"#,
+        );
+    }
+
+    #[test]
+    fn test_handle_push() {
+        let event = PushEvent {
+            repository: Repository {
+                name: "test-repo".to_string(),
+                full_name: "test-user/test-repo".to_string(),
+                html_url: Url::parse("https://github.com/test-user/test-repo").unwrap(),
+            },
+            sender: GitHubUser {
+                login: "test-user".to_string(),
+                id: 42,
+            },
+            commits: vec![
+                Commit {
+                    id: "deadbeef".to_string(),
+                    url: Url::parse("https://github.com/test-user/test-repo/commit/deadbeef").unwrap(),
+                    distinct: true,
+                    message: "This content is very long, longer than our character limit, so it will definitely be truncated".to_string(),
+                },
+
+                Commit {
+                    id: "beefdead".to_string(),
+                    url: Url::parse("https://github.com/test-user/test-repo/commit/beefdead").unwrap(),
+                    distinct: true,
+                    message: "Another message".to_string(),
+                }
+
+            ],
+            head_commit: Some(Commit {
+                id: "deadbeef".to_string(),
+                url: Url::parse("https://github.com/test-user/test-repo/commit/deadbeef").unwrap(),
+                distinct: true,
+                message: "This content is very long, longer than our character limit, so it will definitely be truncated".to_string(),
+            }),
+            forced: true,
+            created: true,
+            compare: Url::parse(
+                "https://github.com/test-user/test-repo/compare/deadbeef...beefdead",
+            )
+                .unwrap(),
+            r#ref: "ref/new-test-branch".to_string(),
+        };
+
+        let response = handle_push(event).expect("should have a response");
+
+        let message = response.message;
+
+        assert_eq!(
+            message.plain,
+            "[test-repo] test-user force-pushed 2 commits including deadbee on new ⊶new-test-branch: This content is very long, longer than our character limit, so it will d…",
+        );
+
+        assert_eq!(
+            message.html,
+            r#"<b>[test-repo]</b> test-user force-pushed <a href="https://github.com/test-user/test-repo/compare/deadbeef...beefdead">2 commits including deadbee</a> on new <a href="https://github.com/test-user/test-repo/tree/new-test-branch">⊶new-test-branch</a>: This content is very long, longer than our character limit, so it will d…"#,
         );
     }
 }
