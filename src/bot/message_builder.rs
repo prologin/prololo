@@ -100,9 +100,9 @@ impl std::fmt::Write for MessageBuilder {
     }
 }
 
-impl std::convert::Into<MessageEventContent> for MessageBuilder {
-    fn into(self) -> MessageEventContent {
-        self.build()
+impl std::convert::From<MessageBuilder> for MessageEventContent {
+    fn from(msg: MessageBuilder) -> Self {
+        msg.build()
     }
 }
 

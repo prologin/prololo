@@ -57,7 +57,7 @@ fn handle_create(event: CreateEvent) -> Option<Response> {
     };
 
     Some(Response {
-        message: message,
+        message,
         repo: Some(event.repository.full_name),
     })
 }
