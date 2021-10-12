@@ -264,7 +264,10 @@ fn handle_pull_request_review(event: PullRequestReviewEvent) -> Option<Response>
     write!(&mut message, " {}", event.sender.login).unwrap();
 
     match action.as_str() {
-        "submitted" => write!(message, " {} {}", decision, pr).unwrap(),
+        "submitted" => {
+            write!(message, " {} ", decision).unwrap();
+            message.link(&format!("{}", pr), pr.html_url);
+        }
 
         // ignored, too verbose
         "edited" => return None,
@@ -272,19 +275,22 @@ fn handle_pull_request_review(event: PullRequestReviewEvent) -> Option<Response>
         "dismissed" => {
             write!(message, " dismissed ").unwrap();
 
+            let mut whose = String::new();
             if event.sender.login == reviewer {
-                write!(message, "their").unwrap();
+                write!(whose, "their").unwrap();
             } else {
-                write!(message, "{}'s", reviewer).unwrap();
+                write!(whose, "{}'s", reviewer).unwrap();
             };
 
-            write!(message, " review for {} (they {} the PR)", pr, decision).unwrap();
+            message.link(&format!("{} review", whose), review.html_url);
+
+            write!(message, " for ").unwrap();
+            message.link(&format!("{}", pr), pr.html_url);
+            write!(message, " (they {} the PR)", decision).unwrap();
         }
 
         _ => return None, // FIXME log error
     }
-
-    write!(message, " {} {}", SEPARATOR, review.html_url).unwrap();
 
     Some(Response {
         message,
@@ -403,7 +409,9 @@ fn handle_push(event: PushEvent) -> Option<Response> {
 
 #[cfg(test)]
 mod tests {
-    use crate::webhooks::github::{Comment, GitHubUser, Issue, PrRef, PullRequest, Repository};
+    use crate::webhooks::github::{
+        Comment, GitHubUser, Issue, PrRef, PullRequest, Repository, Review,
+    };
 
     use super::*;
 
@@ -555,8 +563,69 @@ mod tests {
 
         let message = response.message;
 
-        assert_eq!(message.plain, "[test-repo] test-user opened PR #42: Test PR Title by test-user (main...test)",);
+        assert_eq!(
+            message.plain,
+            "[test-repo] test-user opened PR #42: Test PR Title by test-user (main...test)",
+        );
 
-        assert_eq!(message.html, r#"<b>[test-repo]</b> test-user opened <a href="https://github.com/test-user/test-repo/pull/42">PR #42: Test PR Title by test-user</a> (main...test)"#,);
+        assert_eq!(
+            message.html,
+            r#"<b>[test-repo]</b> test-user opened <a href="https://github.com/test-user/test-repo/pull/42">PR #42: Test PR Title by test-user</a> (main...test)"#,
+        );
+    }
+
+    #[test]
+    fn test_handle_pull_request_review() {
+        let event = PullRequestReviewEvent {
+            sender: GitHubUser {
+                login: "test-user".to_string(),
+                id: 42,
+            },
+            repository: Repository {
+                name: "test-repo".to_string(),
+                full_name: "test-user/test-repo".to_string(),
+                html_url: Url::parse("https://github.com/test-user/test-repo").unwrap(),
+            },
+            pull_request: PullRequest {
+                number: 42,
+                html_url: Url::parse("https://github.com/test-user/test-repo/pull/42").unwrap(),
+                title: "Test PR Title".to_string(),
+                user: GitHubUser {
+                    login: "test-user".to_string(),
+                    id: 42,
+                },
+                requested_reviewers: vec![],
+                base: PrRef {
+                    r#ref: "main".to_string(),
+                },
+                head: PrRef {
+                    r#ref: "test".to_string(),
+                },
+                merged: None,
+            },
+            action: "dismissed".to_string(),
+            review: Review {
+                state: "approved".to_string(),
+                user: GitHubUser {
+                    login: "test-user".to_string(),
+                    id: 42,
+                },
+                html_url: Url::parse("https://github.com/test-user/test-repo/whatever").unwrap(),
+            },
+        };
+
+        let response = handle_pull_request_review(event).expect("should have a response");
+
+        let message = response.message;
+
+        assert_eq!(
+            message.plain,
+            "[test-repo] test-user dismissed their review for PR #42: Test PR Title by test-user (they approved the PR)"
+        );
+
+        assert_eq!(
+            message.html,
+            r#"<b>[test-repo]</b> test-user dismissed <a href="https://github.com/test-user/test-repo/whatever">their review</a> for <a href="https://github.com/test-user/test-repo/pull/42">PR #42: Test PR Title by test-user</a> (they approved the PR)"#,
+        );
     }
 }
