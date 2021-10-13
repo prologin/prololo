@@ -30,9 +30,13 @@ fn handle_prolosite_error(event: DjangoErrorPayload) -> Option<Response> {
     write!(message, "{}", path).unwrap();
     message.close_last();
 
+    write!(message, ": ").unwrap();
+
     // TODO: parse trace and show fancier exceptions
     let exception = &event.exception.value;
-    write!(message, ": {}", exception).unwrap();
+    message.code();
+    write!(message, "{}", exception).unwrap();
+    message.close_last();
 
     Some(Response {
         message,
@@ -69,7 +73,7 @@ mod tests {
         );
         assert_eq!(
             message.html,
-            "<b>[django crash]</b> (prololo) GET <code>/some/route</code>: ExampleException"
+            "<b>[django crash]</b> (prololo) GET <code>/some/route</code>: <code>ExampleException</code>"
         );
     }
 }
