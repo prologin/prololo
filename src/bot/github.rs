@@ -52,7 +52,7 @@ fn handle_create(event: CreateEvent) -> Option<Response> {
                 }
             };
             println!("{}", ref_url);
-            message.link(&event.r#ref, &ref_url)
+            message.main_link(&event.r#ref, &ref_url)
         }
     };
 
@@ -124,7 +124,7 @@ fn handle_issues(event: IssuesEvent) -> Option<Response> {
         _ => return None, // FIXME log error
     }
 
-    message.link(&format!("{}", issue), &issue.html_url);
+    message.main_link(&format!("{}", issue), &issue.html_url);
 
     Some(Response {
         message,
@@ -151,7 +151,7 @@ fn handle_issue_comment(event: IssueCommentEvent) -> Option<Response> {
 
     match action.as_str() {
         "created" => {
-            message.link("commented", &comment.html_url);
+            message.main_link("commented", &comment.html_url);
             write!(message, " on {} ", issue_or_pr,).unwrap();
 
             message.link(&format!("{}", issue), &issue.html_url);
@@ -193,7 +193,7 @@ fn handle_pull_request(event: PullRequestEvent) -> Option<Response> {
                 write!(message, " {} {}", action, assignee.login).unwrap();
             }
             write!(message, " to ").unwrap();
-            message.link(&format!("{}", pr), &pr.html_url);
+            message.main_link(&format!("{}", pr), &pr.html_url);
         }
 
         "review_requested" => {
@@ -205,7 +205,7 @@ fn handle_pull_request(event: PullRequestEvent) -> Option<Response> {
                 .join(", ");
 
             write!(message, " requested {} to review ", reviewers).unwrap();
-            message.link(&format!("{}", pr), &pr.html_url);
+            message.main_link(&format!("{}", pr), &pr.html_url);
         }
 
         // too verbose, don't log that
@@ -215,7 +215,7 @@ fn handle_pull_request(event: PullRequestEvent) -> Option<Response> {
             let base = &pr.base.r#ref;
             let head = &pr.head.r#ref;
             write!(message, " {} ", action).unwrap();
-            message.link(&format!("{}", pr), &pr.html_url);
+            message.main_link(&format!("{}", pr), &pr.html_url);
             write!(message, " ({}...{})", base, head).unwrap();
         }
 
@@ -229,7 +229,7 @@ fn handle_pull_request(event: PullRequestEvent) -> Option<Response> {
                 "closed"
             };
             write!(message, " {} ", decision).unwrap();
-            message.link(&format!("{}", pr), &pr.html_url);
+            message.main_link(&format!("{}", pr), &pr.html_url);
         }
 
         _ => return None, // FIXME log error
@@ -265,7 +265,7 @@ fn handle_pull_request_review(event: PullRequestReviewEvent) -> Option<Response>
     match action.as_str() {
         "submitted" => {
             write!(message, " {} ", decision).unwrap();
-            message.link(&format!("{}", pr), &pr.html_url);
+            message.main_link(&format!("{}", pr), &pr.html_url);
         }
 
         // ignored, too verbose
@@ -281,7 +281,7 @@ fn handle_pull_request_review(event: PullRequestReviewEvent) -> Option<Response>
                 write!(whose, "{}'s", reviewer).unwrap();
             };
 
-            message.link(&format!("{} review", whose), &review.html_url);
+            message.main_link(&format!("{} review", whose), &review.html_url);
 
             write!(message, " for ").unwrap();
             message.link(&format!("{}", pr), &pr.html_url);
@@ -318,7 +318,7 @@ fn handle_pull_request_review_comment(event: PullRequestReviewCommentEvent) -> O
 
     match action.as_str() {
         "created" => {
-            message.link("commented", &comment.html_url);
+            message.main_link("commented", &comment.html_url);
             write!(message, " on ").unwrap();
             message.link(&format!("{}", pr), &pr.html_url);
 
@@ -379,7 +379,7 @@ fn handle_push(event: PushEvent) -> Option<Response> {
 
         url = &event.compare;
     }
-    message.link(&text, url);
+    message.main_link(&text, url);
 
     let branch = event
         .r#ref
@@ -440,6 +440,8 @@ mod tests {
 
         let message = response.message;
 
+        assert!(message.url.is_some());
+
         assert_eq!(message.plain, "[test-repo] test-user created tag test-tag",);
 
         assert_eq!(
@@ -475,6 +477,8 @@ mod tests {
         let response = handle_issues(event).expect("should have a response");
 
         let message = response.message;
+
+        assert!(message.url.is_some());
 
         assert_eq!(
             message.plain,
@@ -519,6 +523,8 @@ mod tests {
         let response = handle_issue_comment(event).expect("should have a response");
 
         let message = response.message;
+
+        assert!(message.url.is_some());
 
         assert_eq!(
             message.plain,
@@ -567,6 +573,8 @@ mod tests {
         let response = handle_pull_request(event).expect("should have a response");
 
         let message = response.message;
+
+        assert!(message.url.is_some());
 
         assert_eq!(
             message.plain,
@@ -623,6 +631,8 @@ mod tests {
 
         let message = response.message;
 
+        assert!(message.url.is_some());
+
         assert_eq!(
             message.plain,
             "[test-repo] test-user dismissed their review for PR #42: Test PR Title by test-user (they approved the PR)"
@@ -676,6 +686,8 @@ mod tests {
         let response = handle_pull_request_review_comment(event).expect("should have a response");
 
         let message = response.message;
+
+        assert!(message.url.is_some());
 
         assert_eq!(
             message.plain,
@@ -734,6 +746,8 @@ mod tests {
         let response = handle_push(event).expect("should have a response");
 
         let message = response.message;
+
+        assert!(message.url.is_some());
 
         assert_eq!(
             message.plain,

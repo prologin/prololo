@@ -3,6 +3,8 @@ use std::fmt::Write;
 use matrix_sdk::ruma::events::room::message::MessageEventContent;
 use url::Url;
 
+const SEPARATOR: &str = "⋅";
+
 enum Style {
     Bold,
     Span,
@@ -22,6 +24,7 @@ pub struct MessageBuilder {
     pub(crate) html: String,
     pub(crate) plain: String,
     style_stack: Vec<Style>,
+    pub(crate) url: Option<Url>,
 }
 
 impl MessageBuilder {
@@ -29,7 +32,12 @@ impl MessageBuilder {
         Default::default()
     }
 
-    pub fn build(self) -> MessageEventContent {
+    pub fn build(mut self) -> MessageEventContent {
+        // Append main URL to plain text message, if we have one
+        if let Some(url) = self.url {
+            write!(self.plain, " {} {}", SEPARATOR, url).unwrap();
+        }
+
         MessageEventContent::text_html(self.plain, self.html)
     }
 
@@ -55,6 +63,13 @@ impl MessageBuilder {
         self.plain.push_str(text);
 
         write!(self.html, r#"<a href="{}">{}</a>"#, href, text).unwrap();
+    }
+
+    /// Format the provided text as an anchor tag, and set the URL to be appended at the end of the
+    /// plain text message
+    pub fn main_link(&mut self, text: &str, href: &Url) {
+        self.link(text, href);
+        self.url = Some(href.clone());
     }
 
     /// Panics if called with no style in the stack
@@ -108,6 +123,10 @@ impl std::convert::From<MessageBuilder> for MessageEventContent {
 
 #[cfg(test)]
 mod tests {
+    use matrix_sdk::ruma::events::room::message::{
+        FormattedBody, MessageFormat, TextMessageEventContent,
+    };
+
     use super::*;
 
     #[test]
@@ -121,5 +140,30 @@ mod tests {
 
         assert_eq!(msgbld.html, "<span style=\"color: #ff0000\"><b>These should be escaped: &lt; &gt; &amp; &quot; &#39;</b></span>");
         assert_eq!(msgbld.plain, "These should be escaped: < > & \" '");
+    }
+
+    #[test]
+    fn test_append_main_url() {
+        let mut msgbld = MessageBuilder::new();
+
+        msgbld.main_link("test", &Url::parse("https://prologin.org").unwrap());
+
+        match msgbld.build().msgtype {
+            matrix_sdk::ruma::events::room::message::MessageType::Text(
+                TextMessageEventContent {
+                    body: plain,
+                    formatted:
+                        Some(FormattedBody {
+                            format: MessageFormat::Html,
+                            body: html,
+                        }),
+                    ..
+                },
+            ) => {
+                assert_eq!(plain, "test ⋅ https://prologin.org/");
+                assert_eq!(html, r#"<a href="https://prologin.org/">test</a>"#);
+            }
+            _ => panic!("shouldn't happen"),
+        }
     }
 }
