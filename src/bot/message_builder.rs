@@ -7,6 +7,7 @@ const SEPARATOR: &str = "⋅";
 
 enum Style {
     Bold,
+    Code,
     Span,
 }
 
@@ -14,6 +15,7 @@ impl Style {
     fn close(&self) -> &'static str {
         match self {
             Self::Bold => "</b>",
+            Self::Code => "</code>",
             Self::Span => "</span>",
         }
     }
@@ -44,6 +46,11 @@ impl MessageBuilder {
     pub fn bold(&mut self) {
         self.html.push_str("<b>");
         self.style_stack.push(Style::Bold);
+    }
+
+    pub fn code(&mut self) {
+        self.html.push_str("<code>");
+        self.style_stack.push(Style::Code);
     }
 
     pub fn color(&mut self, color: &str) {
