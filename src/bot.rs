@@ -24,6 +24,9 @@ use github::handle_github_event;
 mod handlers;
 use handlers::autojoin_authorized_rooms;
 
+mod prolosite;
+use prolosite::handle_prolosite_event;
+
 mod message_builder;
 use message_builder::MessageBuilder;
 
@@ -115,6 +118,7 @@ impl Prololo {
     ) -> anyhow::Result<()> {
         let response = match event {
             Event::GitHub(event) => handle_github_event(event)?,
+            Event::ProloSite(event) => handle_prolosite_event(event)?,
         };
 
         let Response { message, repo } = match response {

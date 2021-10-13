@@ -22,6 +22,8 @@ pub struct ProloloConfig {
     pub destinations: Vec<Destination>,
     /// Secret used to verify HMAC signature of GitHub webhooks
     pub github_secret: String,
+    /// Secret token used in Authorization header for Prologin site hooks
+    pub prolosite_secret: String,
 }
 
 #[derive(Debug, Deserialize, Clone)]

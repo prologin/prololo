@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 use anyhow::anyhow;
 use rocket::{
     http::Status,
@@ -8,9 +10,16 @@ use rocket::{
 use serde::Deserialize;
 use tracing::trace;
 
-pub struct ProlositeSecret(pub String);
+use crate::webhooks::{Event, EventSender};
 
 const AUTHORIZATION: &str = "Authorization";
+
+#[derive(Debug)]
+pub enum ProloSiteEvent {
+    Error(DjangoErrorPayload),
+}
+
+pub struct ProlositeSecret(pub String);
 
 pub(crate) struct AuthorizationHeader<'r>(&'r str);
 
@@ -41,7 +50,18 @@ impl<'r> FromRequest<'r> for AuthorizationHeader<'r> {
 }
 
 #[rocket::post("/api/webhooks/prolosite/django", format = "json", data = "<payload>")]
-pub(crate) fn django(_token: AuthorizationHeader, payload: Json<DjangoPayload>) {}
+pub(crate) fn django(
+    _token: AuthorizationHeader,
+    payload: Json<DjangoErrorPayload>,
+    sender: &State<EventSender>,
+) {
+    sender
+        .0
+        .send(Event::ProloSite(ProloSiteEvent::Error(
+            payload.into_inner(),
+        )))
+        .expect("mspc channel was closed / dropped");
+}
 
 #[rocket::post("/api/webhooks/prolosite/forum", format = "json", data = "<payload>")]
 pub(crate) fn forum(_token: AuthorizationHeader, payload: Json<ForumPayload>) {}
@@ -54,13 +74,22 @@ pub(crate) fn forum(_token: AuthorizationHeader, payload: Json<ForumPayload>) {}
 pub(crate) fn new_school(_token: AuthorizationHeader, payload: Json<NewSchoolPayload>) {}
 
 #[derive(Debug, Deserialize)]
-pub(crate) struct DjangoPayload {
-    request: Request,
+pub struct DjangoErrorPayload {
+    pub(crate) request: Request,
+    pub(crate) exception: Exception,
 }
 
 #[derive(Debug, Deserialize)]
-struct Request {
-    user: Option<String>,
+pub(crate) struct Request {
+    pub(crate) user: Option<String>,
+    pub(crate) method: String,
+    pub(crate) path: PathBuf,
+}
+
+#[derive(Debug, Deserialize)]
+pub(crate) struct Exception {
+    pub(crate) value: String,
+    pub(crate) trace: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
