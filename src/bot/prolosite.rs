@@ -22,12 +22,17 @@ fn handle_prolosite_error(event: DjangoErrorPayload) -> Option<Response> {
         write!(message, " ({})", user).unwrap();
     }
 
+    let method = &event.request.method;
+    write!(message, " {} ", method).unwrap();
+
+    let path = event.request.path.display();
+    message.code();
+    write!(message, "{}", path).unwrap();
+    message.close_last();
+
     // TODO: parse trace and show fancier exceptions
     let exception = &event.exception.value;
-
-    let method = &event.request.method;
-    let path = event.request.path.display();
-    write!(message, "{} {}: {}", method, path, exception).unwrap();
+    write!(message, ": {}", exception).unwrap();
 
     Some(Response {
         message,
