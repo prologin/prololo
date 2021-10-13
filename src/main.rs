@@ -17,7 +17,7 @@ mod webhooks;
 use webhooks::{
     github::GitHubSecret,
     github_webhook,
-    prolosite::{django, forum, new_school},
+    prolosite::{django, forum, new_school, ProlositeSecret},
     EventSender,
 };
 
@@ -41,6 +41,7 @@ async fn main() -> anyhow::Result<()> {
 
     let (sender, receiver) = unbounded_channel();
     let github_secret = config.github_secret.clone();
+    let prolosite_secret = config.prolosite_secret.clone();
 
     let prololo = Prololo::new(config).context("failed to create prololo bot")?;
     prololo.init().await.context("failed to init prololo bot")?;
@@ -49,6 +50,7 @@ async fn main() -> anyhow::Result<()> {
     let rocket = rocket::build()
         .mount("/", routes![github_webhook, django, forum, new_school])
         .manage(EventSender(sender))
-        .manage(GitHubSecret(github_secret));
+        .manage(GitHubSecret(github_secret))
+        .manage(ProlositeSecret(prolosite_secret));
     rocket.launch().await.map_err(|err| anyhow::anyhow!(err))
 }
