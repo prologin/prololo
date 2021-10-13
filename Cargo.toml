@@ -38,3 +38,4 @@ features = ["cargo", "derive", "std"]
 version = "0.5.0-rc.1"
 # don't need private-cookies
 default-features = false
+features = [ "json" ]

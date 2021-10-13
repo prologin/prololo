@@ -14,7 +14,12 @@ mod config;
 use config::ProloloConfig;
 
 mod webhooks;
-use webhooks::{github::GitHubSecret, github_webhook, EventSender};
+use webhooks::{
+    github::GitHubSecret,
+    github_webhook,
+    prolosite::{django, forum, new_school},
+    EventSender,
+};
 
 #[derive(Clap)]
 #[clap(version = "0.1")]
@@ -42,7 +47,7 @@ async fn main() -> anyhow::Result<()> {
     tokio::spawn(async move { prololo.run(receiver).await });
 
     let rocket = rocket::build()
-        .mount("/", routes![github_webhook])
+        .mount("/", routes![github_webhook, django, forum, new_school])
         .manage(EventSender(sender))
         .manage(GitHubSecret(github_secret));
     rocket.launch().await.map_err(|err| anyhow::anyhow!(err))
