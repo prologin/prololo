@@ -39,3 +39,37 @@ fn handle_prolosite_error(event: DjangoErrorPayload) -> Option<Response> {
         repo: None,
     })
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::webhooks::prolosite::{Exception, Request};
+
+    use super::*;
+
+    #[test]
+    fn test_handle_prolosite_error() {
+        let event = DjangoErrorPayload {
+            request: Request {
+                user: Some("prololo".to_string()),
+                method: "GET".to_string(),
+                path: "/some/route".into(),
+            },
+            exception: Exception {
+                value: "ExampleException".to_string(),
+                trace: Some("".to_string()),
+            },
+        };
+
+        let response = handle_prolosite_error(event).expect("should have a response");
+        let message = response.message;
+
+        assert_eq!(
+            message.plain,
+            "[django crash] (prololo) GET /some/route: ExampleException"
+        );
+        assert_eq!(
+            message.html,
+            "<b>[django crash]</b> (prololo) GET <code>/some/route</code>: ExampleException"
+        );
+    }
+}
