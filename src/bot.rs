@@ -18,6 +18,8 @@ use tracing::{debug, info, trace, warn};
 
 use crate::{config::ProloloConfig, webhooks::Event};
 
+mod emoji;
+
 mod github;
 use github::handle_github_event;
 
