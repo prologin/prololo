@@ -58,9 +58,13 @@ impl MessageBuilder {
         self.style_stack.push(Style::Span);
     }
 
-    pub fn tag(&mut self, tag: &str) {
+    pub fn tag(&mut self, tag: &str, emoji: Option<char>) {
         self.bold();
-        write!(self, "[{}]", tag).unwrap();
+        write!(self, "[").unwrap();
+        if let Some(emoji) = emoji {
+            write!(self, "{} ", emoji).unwrap()
+        }
+        write!(self, "{}]", tag).unwrap();
         self.close_last();
     }
 

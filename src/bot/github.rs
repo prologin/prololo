@@ -4,7 +4,7 @@ use tracing::error;
 use url::Url;
 
 use crate::{
-    bot::{message_builder::MessageBuilder, utils::shorten_content, Response},
+    bot::{emoji, message_builder::MessageBuilder, utils::shorten_content, Response},
     webhooks::{
         github::{
             CreateEvent, IssueCommentEvent, IssuesEvent, PullRequestEvent,
@@ -37,7 +37,7 @@ fn handle_create(event: CreateEvent) -> Option<Response> {
     match event.ref_type {
         RefType::Branch => return None,
         RefType::Tag => {
-            message.tag(&event.repository.name);
+            message.tag(&event.repository.name, None);
 
             write!(&mut message, " {} created tag ", event.sender.login,).unwrap();
 
@@ -68,7 +68,7 @@ fn handle_issues(event: IssuesEvent) -> Option<Response> {
 
     let mut message = MessageBuilder::new();
 
-    message.tag(&event.repository.name);
+    message.tag(&event.repository.name, Some(emoji::WRENCH));
 
     write!(&mut message, " {}", event.sender.login).unwrap();
 
@@ -145,7 +145,7 @@ fn handle_issue_comment(event: IssueCommentEvent) -> Option<Response> {
 
     let mut message = MessageBuilder::new();
 
-    message.tag(&event.repository.name);
+    message.tag(&event.repository.name, Some(emoji::WRENCH));
 
     write!(&mut message, " {} ", event.sender.login).unwrap();
 
@@ -177,7 +177,7 @@ fn handle_pull_request(event: PullRequestEvent) -> Option<Response> {
 
     let mut message = MessageBuilder::new();
 
-    message.tag(&event.repository.name);
+    message.tag(&event.repository.name, Some(emoji::OUTBOX_TRAY));
 
     write!(&mut message, " {}", event.sender.login).unwrap();
 
@@ -259,7 +259,7 @@ fn handle_pull_request_review(event: PullRequestReviewEvent) -> Option<Response>
 
     let mut message = MessageBuilder::new();
 
-    message.tag(&event.repository.name);
+    message.tag(&event.repository.name, Some(emoji::OUTBOX_TRAY));
     write!(&mut message, " {}", event.sender.login).unwrap();
 
     match action.as_str() {
@@ -312,7 +312,7 @@ fn handle_pull_request_review_comment(event: PullRequestReviewCommentEvent) -> O
 
     let mut message = MessageBuilder::new();
 
-    message.tag(&event.repository.name);
+    message.tag(&event.repository.name, Some(emoji::SPEECH_BALLOON));
 
     write!(&mut message, " {} ", event.sender.login).unwrap();
 
@@ -357,7 +357,7 @@ fn handle_push(event: PushEvent) -> Option<Response> {
 
     let mut message = MessageBuilder::new();
 
-    message.tag(&event.repository.name);
+    message.tag(&event.repository.name, None);
 
     write!(&mut message, " {} {}pushed ", pusher, force).unwrap();
 
@@ -482,12 +482,12 @@ mod tests {
 
         assert_eq!(
             message.plain,
-            "[test-repo] test-user opened issue #42 (Test Issue Title)",
+            "[🔧 test-repo] test-user opened issue #42 (Test Issue Title)",
         );
 
         assert_eq!(
             message.html,
-            r#"<b>[test-repo]</b> test-user opened issue <a href="https://github.com/test-user/test-repo/issues/42">#42 (Test Issue Title)</a>"#,
+            r#"<b>[🔧 test-repo]</b> test-user opened issue <a href="https://github.com/test-user/test-repo/issues/42">#42 (Test Issue Title)</a>"#,
         );
     }
 
@@ -528,12 +528,12 @@ mod tests {
 
         assert_eq!(
             message.plain,
-            "[test-repo] test-user commented on issue #42 (Test Issue Title): This content is very long, longer than our character limit, so it will d…",
+            "[🔧 test-repo] test-user commented on issue #42 (Test Issue Title): This content is very long, longer than our character limit, so it will d…",
         );
 
         assert_eq!(
             message.html,
-            r#"<b>[test-repo]</b> test-user <a href="https://github.com/test-user/test-repo/issues/42#issue-42424242">commented</a> on issue <a href="https://github.com/test-user/test-repo/issues/42">#42 (Test Issue Title)</a>: This content is very long, longer than our character limit, so it will d…"#,
+            r#"<b>[🔧 test-repo]</b> test-user <a href="https://github.com/test-user/test-repo/issues/42#issue-42424242">commented</a> on issue <a href="https://github.com/test-user/test-repo/issues/42">#42 (Test Issue Title)</a>: This content is very long, longer than our character limit, so it will d…"#,
         );
     }
 
@@ -578,12 +578,12 @@ mod tests {
 
         assert_eq!(
             message.plain,
-            "[test-repo] test-user opened PR #42: Test PR Title by test-user (main...test)",
+            "[📤 test-repo] test-user opened PR #42: Test PR Title by test-user (main...test)",
         );
 
         assert_eq!(
             message.html,
-            r#"<b>[test-repo]</b> test-user opened <a href="https://github.com/test-user/test-repo/pull/42">PR #42: Test PR Title by test-user</a> (main...test)"#,
+            r#"<b>[📤 test-repo]</b> test-user opened <a href="https://github.com/test-user/test-repo/pull/42">PR #42: Test PR Title by test-user</a> (main...test)"#,
         );
     }
 
@@ -635,12 +635,12 @@ mod tests {
 
         assert_eq!(
             message.plain,
-            "[test-repo] test-user dismissed their review for PR #42: Test PR Title by test-user (they approved the PR)"
+            "[📤 test-repo] test-user dismissed their review for PR #42: Test PR Title by test-user (they approved the PR)"
         );
 
         assert_eq!(
             message.html,
-            r#"<b>[test-repo]</b> test-user dismissed <a href="https://github.com/test-user/test-repo/whatever">their review</a> for <a href="https://github.com/test-user/test-repo/pull/42">PR #42: Test PR Title by test-user</a> (they approved the PR)"#,
+            r#"<b>[📤 test-repo]</b> test-user dismissed <a href="https://github.com/test-user/test-repo/whatever">their review</a> for <a href="https://github.com/test-user/test-repo/pull/42">PR #42: Test PR Title by test-user</a> (they approved the PR)"#,
         );
     }
 
@@ -691,12 +691,12 @@ mod tests {
 
         assert_eq!(
             message.plain,
-            "[test-repo] test-user commented on PR #42: Test PR Title by test-user"
+            "[💬 test-repo] test-user commented on PR #42: Test PR Title by test-user"
         );
 
         assert_eq!(
             message.html,
-            r#"<b>[test-repo]</b> test-user <a href="https://github.com/test-user/test-repo/whatever">commented</a> on <a href="https://github.com/test-user/test-repo/pull/42">PR #42: Test PR Title by test-user</a>"#,
+            r#"<b>[💬 test-repo]</b> test-user <a href="https://github.com/test-user/test-repo/whatever">commented</a> on <a href="https://github.com/test-user/test-repo/pull/42">PR #42: Test PR Title by test-user</a>"#,
         );
     }
 

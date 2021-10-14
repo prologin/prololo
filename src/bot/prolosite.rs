@@ -3,7 +3,7 @@ use std::fmt::Write;
 use tracing::trace;
 
 use crate::{
-    bot::{message_builder::MessageBuilder, utils::shorten_content_length, Response},
+    bot::{emoji, message_builder::MessageBuilder, utils::shorten_content_length, Response},
     webhooks::{
         prolosite::{DjangoErrorPayload, ForumPayload, NewSchoolPayload},
         ProloSiteEvent,
@@ -24,7 +24,7 @@ pub(crate) fn handle_prolosite_event(event: ProloSiteEvent) -> anyhow::Result<Op
 fn handle_prolosite_error(event: DjangoErrorPayload) -> Option<Response> {
     let mut message = MessageBuilder::new();
 
-    message.tag("django crash");
+    message.tag("django crash", Some(emoji::FIRE));
 
     if let Some(user) = event.request.user {
         write!(message, " ({})", user).unwrap();
@@ -55,7 +55,7 @@ fn handle_prolosite_error(event: DjangoErrorPayload) -> Option<Response> {
 fn handle_prolosite_forum(event: ForumPayload) -> Option<Response> {
     let mut message = MessageBuilder::new();
 
-    message.tag("forum");
+    message.tag("forum", Some(emoji::SPEECH_BALLOON));
 
     write!(message, " {} created ", event.username).unwrap();
 
@@ -78,7 +78,7 @@ fn handle_prolosite_forum(event: ForumPayload) -> Option<Response> {
 fn handle_prolosite_new_school(event: NewSchoolPayload) -> Option<Response> {
     let mut message = MessageBuilder::new();
 
-    message.tag("school");
+    message.tag("school", Some(emoji::GRADUATION_CAP));
 
     write!(message, " New school added: ").unwrap();
 
@@ -115,11 +115,11 @@ mod tests {
 
         assert_eq!(
             message.plain,
-            "[django crash] (prololo) GET /some/route: ExampleException"
+            "[🔥 django crash] (prololo) GET /some/route: ExampleException"
         );
         assert_eq!(
             message.html,
-            "<b>[django crash]</b> (prololo) GET <code>/some/route</code>: <code>ExampleException</code>"
+            "<b>[🔥 django crash]</b> (prololo) GET <code>/some/route</code>: <code>ExampleException</code>"
         );
     }
 }
