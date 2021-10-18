@@ -91,7 +91,7 @@ pub(crate) struct Request {
 #[derive(Debug, Deserialize)]
 pub(crate) struct Exception {
     pub(crate) value: String,
-    pub(crate) trace: Option<String>,
+    pub(crate) trace: Vec<String>,
 }
 
 #[derive(Debug, Deserialize)]
