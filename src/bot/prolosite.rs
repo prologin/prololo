@@ -3,14 +3,19 @@ use std::fmt::Write;
 use tracing::trace;
 
 use crate::{
-    bot::{message_builder::MessageBuilder, Response},
-    webhooks::{prolosite::DjangoErrorPayload, ProloSiteEvent},
+    bot::{message_builder::MessageBuilder, utils::shorten_content_length, Response},
+    webhooks::{
+        prolosite::{DjangoErrorPayload, ForumPayload, NewSchoolPayload},
+        ProloSiteEvent,
+    },
 };
 
 pub(crate) fn handle_prolosite_event(event: ProloSiteEvent) -> anyhow::Result<Option<Response>> {
     trace!("handling prolosite event");
     let response = match event {
         ProloSiteEvent::Error(event) => handle_prolosite_error(event),
+        ProloSiteEvent::Forum(event) => handle_prolosite_forum(event),
+        ProloSiteEvent::NewSchool(event) => handle_prolosite_new_school(event),
     };
 
     Ok(response)
@@ -40,6 +45,44 @@ fn handle_prolosite_error(event: DjangoErrorPayload) -> Option<Response> {
     message.code();
     write!(message, "{}", exception).unwrap();
     message.close_last();
+
+    Some(Response {
+        message,
+        repo: None,
+    })
+}
+
+fn handle_prolosite_forum(event: ForumPayload) -> Option<Response> {
+    let mut message = MessageBuilder::new();
+
+    message.tag("forum");
+
+    write!(message, " {} created ", event.username).unwrap();
+
+    message.main_link("new thread", &event.url);
+
+    write!(
+        message,
+        " in {}: {}",
+        event.forum,
+        shorten_content_length(&event.title, 140)
+    )
+    .unwrap();
+
+    Some(Response {
+        message,
+        repo: None,
+    })
+}
+
+fn handle_prolosite_new_school(event: NewSchoolPayload) -> Option<Response> {
+    let mut message = MessageBuilder::new();
+
+    message.tag("school");
+
+    write!(message, " New school added: ").unwrap();
+
+    message.main_link(&event.name, &event.url);
 
     Some(Response {
         message,
