@@ -9,6 +9,7 @@ use rocket::{
 };
 use serde::Deserialize;
 use tracing::{info, trace};
+use url::Url;
 
 use crate::webhooks::{Event, EventSender};
 
@@ -17,6 +18,8 @@ const AUTHORIZATION: &str = "Authorization";
 #[derive(Debug)]
 pub enum ProloSiteEvent {
     Error(DjangoErrorPayload),
+    Forum(ForumPayload),
+    NewSchool(NewSchoolPayload),
 }
 
 pub struct ProlositeSecret(pub String);
@@ -66,14 +69,42 @@ pub(crate) fn django(
 }
 
 #[rocket::post("/api/webhooks/prolosite/forum", format = "json", data = "<payload>")]
-pub(crate) fn forum(_token: AuthorizationHeader, payload: Json<ForumPayload>) {}
+pub(crate) fn forum(
+    _token: AuthorizationHeader,
+    payload: Json<ForumPayload>,
+    sender: &State<EventSender>,
+) {
+    info!("received forum update");
+    trace!("payload: {:?}", payload.0);
+
+    sender
+        .0
+        .send(Event::ProloSite(ProloSiteEvent::Forum(
+            payload.into_inner(),
+        )))
+        .expect("mspc channel was closed / dropped");
+}
 
 #[rocket::post(
     "/api/webhooks/prolosite/new-school",
     format = "json",
     data = "<payload>"
 )]
-pub(crate) fn new_school(_token: AuthorizationHeader, payload: Json<NewSchoolPayload>) {}
+pub(crate) fn new_school(
+    _token: AuthorizationHeader,
+    payload: Json<NewSchoolPayload>,
+    sender: &State<EventSender>,
+) {
+    info!("received new school update");
+    trace!("payload: {:?}", payload.0);
+
+    sender
+        .0
+        .send(Event::ProloSite(ProloSiteEvent::NewSchool(
+            payload.into_inner(),
+        )))
+        .expect("mspc channel was closed / dropped");
+}
 
 #[derive(Debug, Deserialize)]
 pub struct DjangoErrorPayload {
@@ -95,7 +126,15 @@ pub(crate) struct Exception {
 }
 
 #[derive(Debug, Deserialize)]
-pub struct ForumPayload {}
+pub struct ForumPayload {
+    pub(crate) username: String,
+    pub(crate) forum: String,
+    pub(crate) title: String,
+    pub(crate) url: Url,
+}
 
 #[derive(Debug, Deserialize)]
-pub struct NewSchoolPayload {}
+pub struct NewSchoolPayload {
+    pub(crate) name: String,
+    pub(crate) url: Url,
+}
