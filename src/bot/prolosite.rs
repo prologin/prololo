@@ -1,11 +1,14 @@
 use std::fmt::Write;
 
+use tracing::trace;
+
 use crate::{
     bot::{message_builder::MessageBuilder, Response},
     webhooks::{prolosite::DjangoErrorPayload, ProloSiteEvent},
 };
 
 pub(crate) fn handle_prolosite_event(event: ProloSiteEvent) -> anyhow::Result<Option<Response>> {
+    trace!("handling prolosite event");
     let response = match event {
         ProloSiteEvent::Error(event) => handle_prolosite_error(event),
     };

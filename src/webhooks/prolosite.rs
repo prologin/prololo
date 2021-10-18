@@ -8,7 +8,7 @@ use rocket::{
     State,
 };
 use serde::Deserialize;
-use tracing::trace;
+use tracing::{info, trace};
 
 use crate::webhooks::{Event, EventSender};
 
@@ -55,6 +55,8 @@ pub(crate) fn django(
     payload: Json<DjangoErrorPayload>,
     sender: &State<EventSender>,
 ) {
+    info!("received django error");
+    trace!("payload: {:?}", payload.0);
     sender
         .0
         .send(Event::ProloSite(ProloSiteEvent::Error(
