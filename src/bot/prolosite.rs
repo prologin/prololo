@@ -106,7 +106,7 @@ mod tests {
             },
             exception: Exception {
                 value: "ExampleException".to_string(),
-                trace: Some("".to_string()),
+                trace: vec![],
             },
         };
 
