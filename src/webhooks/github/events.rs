@@ -144,5 +144,5 @@ pub struct PrRef {
 
 #[derive(Debug, Deserialize)]
 pub struct PullRequestLinks {
-    html_url: Url,
+    pub html_url: Url,
 }
