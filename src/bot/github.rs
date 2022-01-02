@@ -383,7 +383,7 @@ fn handle_push(event: PushEvent) -> Option<Response> {
 
     let branch = event
         .r#ref
-        .rsplit_once('/')
+        .split_once("refs/heads/")
         .expect("couldn't find branch name")
         .1;
 
