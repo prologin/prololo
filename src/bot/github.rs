@@ -7,8 +7,9 @@ use crate::{
     bot::{emoji, message_builder::MessageBuilder, utils::shorten_content, Response},
     webhooks::{
         github::{
-            CreateEvent, IssueCommentEvent, IssuesEvent, PullRequestEvent,
+            CreateEvent, IssueCommentEvent, IssuesEvent, PingEvent, PullRequestEvent,
             PullRequestReviewCommentEvent, PullRequestReviewEvent, PushEvent, RefType,
+            RepositoryEvent,
         },
         GitHubEvent,
     },
@@ -19,6 +20,7 @@ const SHORT_HASH_LENGTH: usize = 7;
 
 pub fn handle_github_event(event: GitHubEvent) -> anyhow::Result<Option<Response>> {
     let response = match event {
+        GitHubEvent::Ping(event) => handle_ping(event),
         GitHubEvent::Create(event) => handle_create(event),
         GitHubEvent::Issues(event) => handle_issues(event),
         GitHubEvent::IssueComment(event) => handle_issue_comment(event),
@@ -26,9 +28,34 @@ pub fn handle_github_event(event: GitHubEvent) -> anyhow::Result<Option<Response
         GitHubEvent::PullRequest(event) => handle_pull_request(event),
         GitHubEvent::PullRequestReview(event) => handle_pull_request_review(event),
         GitHubEvent::PullRequestReviewComment(event) => handle_pull_request_review_comment(event),
+        GitHubEvent::Repository(event) => handle_repository(event),
     };
 
     Ok(response)
+}
+
+fn handle_ping(event: PingEvent) -> Option<Response> {
+    let mut message = MessageBuilder::new();
+
+    match &(event.repository) {
+        Some(repo) => {
+            message.tag(&repo.name, Some(emoji::PING_PONG));
+            write!(&mut message, " ").unwrap();
+        }
+        None => {}
+    }
+
+    write!(
+        &mut message,
+        "{} completed webhook setup! {}",
+        event.sender.login, event.zen
+    )
+    .unwrap();
+
+    Some(Response {
+        message,
+        repo: event.repository.map(|r| r.full_name),
+    })
 }
 
 fn handle_create(event: CreateEvent) -> Option<Response> {
@@ -405,6 +432,54 @@ fn handle_push(event: PushEvent) -> Option<Response> {
 
     message.link(&format!("{}{}", BRANCH, branch), &ref_url);
     write!(message, ": {}", shorten_content(head.title())).unwrap();
+
+    Some(Response {
+        message,
+        repo: Some(event.repository.full_name),
+    })
+}
+
+fn handle_repository(event: RepositoryEvent) -> Option<Response> {
+    let mut message = MessageBuilder::new();
+
+    match event.action.as_str() {
+        "created" | "deleted" | "archived" | "unarchived" | "transferred" | "publicized"
+        | "privatized" => {
+            message.tag(&event.repository.name, Some(emoji::PACKAGE));
+
+            write!(
+                &mut message,
+                " {} {} repository",
+                event.sender.login, event.action
+            )
+            .unwrap();
+        }
+
+        "renamed" => {
+            let old_repo_name = event
+                .changes
+                .expect("no changes reported even if repository was renamed")
+                .repository
+                .name
+                .from;
+
+            message.tag(&old_repo_name, Some(emoji::PACKAGE));
+
+            write!(
+                &mut message,
+                " {} renamed repository to {}",
+                event.sender.login, event.repository.name
+            )
+            .unwrap();
+        }
+
+        "edited" => return None, // ignore, too verbose
+
+        _ => {
+            error!("invalid or unsupported repository action: {}", event.action);
+            return None;
+        }
+    }
 
     Some(Response {
         message,

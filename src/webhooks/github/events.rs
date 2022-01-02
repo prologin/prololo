@@ -8,23 +8,28 @@ use crate::bot::utils::shorten_content;
 mod create;
 mod issue_comment;
 mod issues;
+mod ping;
 mod pull_request;
 mod pull_request_review;
 mod pull_request_review_comment;
 mod push;
+mod repository;
 mod types;
 
 pub use create::*;
 pub use issue_comment::*;
 pub use issues::*;
+pub use ping::*;
 pub use pull_request::*;
 pub use pull_request_review::*;
 pub use pull_request_review_comment::*;
 pub use push::*;
+pub use repository::*;
 pub use types::*;
 
 #[derive(Debug)]
 pub enum GitHubEvent {
+    Ping(PingEvent),
     Create(CreateEvent),
     IssueComment(IssueCommentEvent),
     Issues(IssuesEvent),
@@ -32,6 +37,7 @@ pub enum GitHubEvent {
     PullRequestReview(PullRequestReviewEvent),
     PullRequestReviewComment(PullRequestReviewCommentEvent),
     Push(PushEvent),
+    Repository(RepositoryEvent),
 }
 
 #[derive(Debug, Deserialize)]
