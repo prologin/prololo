@@ -16,6 +16,7 @@ pub enum GitHubEventType {
     Create,
     Issues,
     IssueComment,
+    Organization,
     PullRequest,
     PullRequestReview,
     PullRequestReviewComment,
@@ -34,6 +35,7 @@ impl GitHubEventType {
             Self::Create => GitHubEvent::Create(serde_json::from_str(&payload.0)?),
             Self::IssueComment => GitHubEvent::IssueComment(serde_json::from_str(&payload.0)?),
             Self::Issues => GitHubEvent::Issues(serde_json::from_str(&payload.0)?),
+            Self::Organization => GitHubEvent::Organization(serde_json::from_str(&payload.0)?),
             Self::PullRequest => GitHubEvent::PullRequest(serde_json::from_str(&payload.0)?),
             Self::PullRequestReview => {
                 GitHubEvent::PullRequestReview(serde_json::from_str(&payload.0)?)

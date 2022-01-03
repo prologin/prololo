@@ -7,9 +7,9 @@ use crate::{
     bot::{emoji, message_builder::MessageBuilder, utils::shorten_content, Response},
     webhooks::{
         github::{
-            CreateEvent, IssueCommentEvent, IssuesEvent, PingEvent, PullRequestEvent,
-            PullRequestReviewCommentEvent, PullRequestReviewEvent, PushEvent, RefType,
-            RepositoryEvent,
+            CreateEvent, IssueCommentEvent, IssuesEvent, OrganizationEvent, PingEvent,
+            PullRequestEvent, PullRequestReviewCommentEvent, PullRequestReviewEvent, PushEvent,
+            RefType, RepositoryEvent,
         },
         GitHubEvent,
     },
@@ -24,6 +24,7 @@ pub fn handle_github_event(event: GitHubEvent) -> anyhow::Result<Option<Response
         GitHubEvent::Create(event) => handle_create(event),
         GitHubEvent::Issues(event) => handle_issues(event),
         GitHubEvent::IssueComment(event) => handle_issue_comment(event),
+        GitHubEvent::Organization(event) => handle_organization(event),
         GitHubEvent::Push(event) => handle_push(event),
         GitHubEvent::PullRequest(event) => handle_pull_request(event),
         GitHubEvent::PullRequestReview(event) => handle_pull_request_review(event),
@@ -195,6 +196,72 @@ fn handle_issue_comment(event: IssueCommentEvent) -> Option<Response> {
     Some(Response {
         message,
         repo: Some(event.repository.full_name),
+    })
+}
+
+fn handle_organization(event: OrganizationEvent) -> Option<Response> {
+    let action = event.action;
+
+    let mut message = MessageBuilder::new();
+
+    match action.as_str() {
+        "member_invited" => {
+            let invitation = event
+                .invitation
+                .expect("member was invited but no invitation is set");
+            let user = event.user.expect("member was invited but no user is set");
+
+            write!(
+                &mut message,
+                "{} invited {} {} to organization as {}",
+                event.sender.login,
+                emoji::PEOPLE,
+                user.login,
+                invitation.role
+            )
+            .unwrap();
+        }
+        "member_added" => {
+            let membership = event
+                .membership
+                .expect("member was added but no membership is set");
+
+            write!(
+                &mut message,
+                "{} added {} {} to organization as {}",
+                event.sender.login,
+                emoji::PEOPLE,
+                membership.user.login,
+                membership.role,
+            )
+            .unwrap();
+        }
+        "member_removed" => {
+            let membership = event
+                .membership
+                .expect("member was added but no membership is set");
+
+            write!(
+                &mut message,
+                "{} removed {} {} from organization (was {})",
+                event.sender.login,
+                emoji::PEOPLE,
+                membership.user.login,
+                membership.role,
+            )
+            .unwrap();
+        }
+
+        // TODO maybe handle `renamed` and `deleted` actions even tho it should not happen in our case
+        _ => {
+            error!("invalid or unsupported organization action: {}", action);
+            return None;
+        }
+    };
+
+    Some(Response {
+        message,
+        repo: None,
     })
 }
 
