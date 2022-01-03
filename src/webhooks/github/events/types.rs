@@ -14,6 +14,7 @@ use crate::webhooks::github::{GitHubEvent, SignedGitHubPayload, X_GITHUB_EVENT};
 pub enum GitHubEventType {
     Ping,
     Create,
+    Fork,
     Issues,
     IssueComment,
     Organization,
@@ -33,6 +34,7 @@ impl GitHubEventType {
         Ok(match self {
             Self::Ping => GitHubEvent::Ping(serde_json::from_str(&payload.0)?),
             Self::Create => GitHubEvent::Create(serde_json::from_str(&payload.0)?),
+            Self::Fork => GitHubEvent::Fork(serde_json::from_str(&payload.0)?),
             Self::IssueComment => GitHubEvent::IssueComment(serde_json::from_str(&payload.0)?),
             Self::Issues => GitHubEvent::Issues(serde_json::from_str(&payload.0)?),
             Self::Organization => GitHubEvent::Organization(serde_json::from_str(&payload.0)?),

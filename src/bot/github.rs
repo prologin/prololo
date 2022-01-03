@@ -22,6 +22,7 @@ pub fn handle_github_event(event: GitHubEvent) -> anyhow::Result<Option<Response
     let response = match event {
         GitHubEvent::Ping(event) => handle_ping(event),
         GitHubEvent::Create(event) => handle_create(event),
+        GitHubEvent::Fork(event) => handle_fork(event),
         GitHubEvent::Issues(event) => handle_issues(event),
         GitHubEvent::IssueComment(event) => handle_issue_comment(event),
         GitHubEvent::Organization(event) => handle_organization(event),
@@ -83,6 +84,19 @@ fn handle_create(event: CreateEvent) -> Option<Response> {
             message.main_link(&event.r#ref, &ref_url)
         }
     };
+
+    Some(Response {
+        message,
+        repo: Some(event.repository.full_name),
+    })
+}
+
+fn handle_fork(event: crate::webhooks::github::ForkEvent) -> Option<Response> {
+    let mut message = MessageBuilder::new();
+
+    message.tag(&event.repository.name, Some(emoji::PACKAGE));
+    write!(&mut message, " {} forked into ", event.sender.login).unwrap();
+    message.main_link(&event.forkee.full_name, &event.forkee.html_url);
 
     Some(Response {
         message,

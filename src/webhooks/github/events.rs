@@ -6,6 +6,7 @@ use url::Url;
 use crate::bot::utils::shorten_content;
 
 mod create;
+mod fork;
 mod issue_comment;
 mod issues;
 mod organization;
@@ -18,6 +19,7 @@ mod repository;
 mod types;
 
 pub use create::*;
+pub use fork::*;
 pub use issue_comment::*;
 pub use issues::*;
 pub use organization::*;
@@ -33,6 +35,7 @@ pub use types::*;
 pub enum GitHubEvent {
     Ping(PingEvent),
     Create(CreateEvent),
+    Fork(ForkEvent),
     IssueComment(IssueCommentEvent),
     Issues(IssuesEvent),
     Organization(OrganizationEvent),
