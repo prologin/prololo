@@ -5,6 +5,7 @@ use url::Url;
 
 use crate::bot::utils::shorten_content;
 
+mod commit_comment;
 mod create;
 mod fork;
 mod issue_comment;
@@ -18,6 +19,7 @@ mod push;
 mod repository;
 mod types;
 
+pub use commit_comment::*;
 pub use create::*;
 pub use fork::*;
 pub use issue_comment::*;
@@ -34,6 +36,7 @@ pub use types::*;
 #[derive(Debug)]
 pub enum GitHubEvent {
     Ping(PingEvent),
+    CommitComment(CommitCommentEvent),
     Create(CreateEvent),
     Fork(ForkEvent),
     IssueComment(IssueCommentEvent),
@@ -101,6 +104,7 @@ pub struct Milestone {
 pub struct Comment {
     pub html_url: Url,
     pub body: String,
+    pub commit_id: Option<String>,
     pub pull_request_review_id: Option<u64>,
     pub path: Option<String>,
     pub position: Option<u64>,

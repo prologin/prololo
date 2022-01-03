@@ -21,6 +21,7 @@ const SHORT_HASH_LENGTH: usize = 7;
 pub fn handle_github_event(event: GitHubEvent) -> anyhow::Result<Option<Response>> {
     let response = match event {
         GitHubEvent::Ping(event) => handle_ping(event),
+        GitHubEvent::CommitComment(event) => handle_commit_comment(event),
         GitHubEvent::Create(event) => handle_create(event),
         GitHubEvent::Fork(event) => handle_fork(event),
         GitHubEvent::Issues(event) => handle_issues(event),
@@ -57,6 +58,33 @@ fn handle_ping(event: PingEvent) -> Option<Response> {
     Some(Response {
         message,
         repo: event.repository.map(|r| r.full_name),
+    })
+}
+
+fn handle_commit_comment(event: crate::webhooks::github::CommitCommentEvent) -> Option<Response> {
+    let comment = event.comment;
+    let commit_id = comment
+        .commit_id
+        .expect("commit comment without a commit id");
+
+    let mut commit_html_url = comment.html_url.clone();
+    commit_html_url.set_fragment(None);
+
+    let mut message = MessageBuilder::new();
+
+    message.tag(&event.repository.name, Some(emoji::SPEECH_BALLOON));
+
+    write!(&mut message, " {} ", event.sender.login).unwrap();
+
+    message.main_link("commented", &comment.html_url);
+    write!(message, " on ").unwrap();
+    message.link(&commit_id[..SHORT_HASH_LENGTH], &commit_html_url);
+
+    write!(message, ": {}", shorten_content(&comment.body)).unwrap();
+
+    Some(Response {
+        message,
+        repo: Some(event.repository.full_name),
     })
 }
 
@@ -670,6 +698,7 @@ mod tests {
             comment: Comment {
                 html_url: Url::parse("https://github.com/test-user/test-repo/issues/42#issue-42424242").unwrap(),
                 body: "This content is very long, longer than our character limit, so it will definitely be truncated".to_string(),
+                commit_id: None,
                 pull_request_review_id: None,
                 path: None,
                 position: None,
@@ -833,6 +862,7 @@ mod tests {
             comment: Comment {
                 html_url: Url::parse("https://github.com/test-user/test-repo/whatever").unwrap(),
                 body: "This content is very long, longer than our character limit, so it will definitely be truncated".to_string(),
+                commit_id: None,
                 pull_request_review_id: None,
                 path: None,
                 position: None,

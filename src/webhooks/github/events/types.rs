@@ -13,6 +13,7 @@ use crate::webhooks::github::{GitHubEvent, SignedGitHubPayload, X_GITHUB_EVENT};
 #[serde(rename_all = "snake_case")]
 pub enum GitHubEventType {
     Ping,
+    CommitComment,
     Create,
     Fork,
     Issues,
@@ -33,6 +34,7 @@ impl GitHubEventType {
     ) -> anyhow::Result<GitHubEvent> {
         Ok(match self {
             Self::Ping => GitHubEvent::Ping(serde_json::from_str(&payload.0)?),
+            Self::CommitComment => GitHubEvent::CommitComment(serde_json::from_str(&payload.0)?),
             Self::Create => GitHubEvent::Create(serde_json::from_str(&payload.0)?),
             Self::Fork => GitHubEvent::Fork(serde_json::from_str(&payload.0)?),
             Self::IssueComment => GitHubEvent::IssueComment(serde_json::from_str(&payload.0)?),
