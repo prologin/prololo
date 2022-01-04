@@ -739,7 +739,7 @@ mod tests {
                 "https://github.com/test-user/test-repo/compare/deadbeef...beefdead",
             )
                 .unwrap(),
-            r#ref: "ref/new-test-branch".to_string(),
+            r#ref: "refs/heads/new-test-branch".to_string(),
         };
 
         let response = handle_push(event).expect("should have a response");
