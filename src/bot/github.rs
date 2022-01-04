@@ -231,29 +231,21 @@ fn handle_membership(event: crate::webhooks::github::MembershipEvent) -> Option<
         return None;
     }
 
-    match action.as_str() {
-        "added" => {
-            write!(
-                &mut message,
-                " {} added {} to the team",
-                event.sender.login, event.member.login,
-            )
-            .unwrap();
-        }
-        "removed" => {
-            write!(
-                &mut message,
-                " {} removed {} from the team",
-                event.sender.login, event.member.login,
-            )
-            .unwrap();
-        }
-
+    let preposition = match action.as_str() {
+        "added" => "to",
+        "removed" => "from",
         _ => {
             error!("invalid or unsupported membership action: {}", action);
             return None;
         }
     };
+
+    write!(
+        &mut message,
+        " {} {} {} {} the team",
+        event.sender.login, action, event.member.login, preposition
+    )
+    .unwrap();
 
     Some(Response {
         message,
