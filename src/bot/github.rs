@@ -109,6 +109,45 @@ fn handle_fork(event: crate::webhooks::github::ForkEvent) -> Option<Response> {
     })
 }
 
+fn handle_issue_comment(event: IssueCommentEvent) -> Option<Response> {
+    let action = event.action;
+    let comment = event.comment;
+    let issue = event.issue;
+
+    // Comments left on PRs are considered as issue comments as well
+    let issue_or_pr = match issue.pull_request {
+        Some(_) => "PR",
+        None => "issue",
+    };
+
+    let mut message = MessageBuilder::new();
+
+    message.tag(&event.repository.name, Some(emoji::WRENCH));
+
+    write!(&mut message, " {} ", event.sender.login).unwrap();
+
+    match action.as_str() {
+        "created" => {
+            message.main_link("commented", &comment.html_url);
+            write!(message, " on {} ", issue_or_pr,).unwrap();
+
+            message.link(&format!("{}", issue), &issue.html_url);
+
+            write!(message, ": {}", shorten_content(&comment.body),).unwrap();
+        }
+
+        // too verbose, don't log that
+        "edited" | "deleted" => return None,
+
+        _ => return None, // FIXME log error
+    }
+
+    Some(Response {
+        message,
+        repo: Some(event.repository.full_name),
+    })
+}
+
 fn handle_issues(event: IssuesEvent) -> Option<Response> {
     let action = event.action;
     let issue = event.issue;
@@ -172,45 +211,6 @@ fn handle_issues(event: IssuesEvent) -> Option<Response> {
     }
 
     message.main_link(&format!("{}", issue), &issue.html_url);
-
-    Some(Response {
-        message,
-        repo: Some(event.repository.full_name),
-    })
-}
-
-fn handle_issue_comment(event: IssueCommentEvent) -> Option<Response> {
-    let action = event.action;
-    let comment = event.comment;
-    let issue = event.issue;
-
-    // Comments left on PRs are considered as issue comments as well
-    let issue_or_pr = match issue.pull_request {
-        Some(_) => "PR",
-        None => "issue",
-    };
-
-    let mut message = MessageBuilder::new();
-
-    message.tag(&event.repository.name, Some(emoji::WRENCH));
-
-    write!(&mut message, " {} ", event.sender.login).unwrap();
-
-    match action.as_str() {
-        "created" => {
-            message.main_link("commented", &comment.html_url);
-            write!(message, " on {} ", issue_or_pr,).unwrap();
-
-            message.link(&format!("{}", issue), &issue.html_url);
-
-            write!(message, ": {}", shorten_content(&comment.body),).unwrap();
-        }
-
-        // too verbose, don't log that
-        "edited" | "deleted" => return None,
-
-        _ => return None, // FIXME log error
-    }
 
     Some(Response {
         message,
@@ -643,6 +643,11 @@ mod tests {
     use super::*;
 
     #[test]
+    fn test_handle_commit_comment() {
+        todo!();
+    }
+
+    #[test]
     fn test_handle_create() {
         let event = CreateEvent {
             ref_type: RefType::Tag,
@@ -673,44 +678,8 @@ mod tests {
     }
 
     #[test]
-    fn test_handle_issues() {
-        let event = IssuesEvent {
-            repository: Repository {
-                name: "test-repo".to_string(),
-                full_name: "test-user/test-repo".to_string(),
-                html_url: Url::parse("https://github.com/test-user/test-repo").unwrap(),
-            },
-            sender: GitHubUser {
-                login: "test-user".to_string(),
-                id: 42,
-            },
-            issue: Issue {
-                number: 42,
-                html_url: Url::parse("https://github.com/test-user/test-repo/issues/42").unwrap(),
-                title: "Test Issue Title".to_string(),
-                milestone: None,
-                pull_request: None,
-            },
-            changes: None,
-            assignee: None,
-            action: "opened".to_string(),
-        };
-
-        let response = handle_issues(event).expect("should have a response");
-
-        let message = response.message;
-
-        assert!(message.url.is_some());
-
-        assert_eq!(
-            message.plain,
-            "[🔧 test-repo] test-user opened issue #42 (Test Issue Title)",
-        );
-
-        assert_eq!(
-            message.html,
-            r#"<b>[🔧 test-repo]</b> test-user opened issue <a href="https://github.com/test-user/test-repo/issues/42">#42 (Test Issue Title)</a>"#,
-        );
+    fn test_handle_fork() {
+        todo!();
     }
 
     #[test]
@@ -758,6 +727,62 @@ mod tests {
             message.html,
             r#"<b>[🔧 test-repo]</b> test-user <a href="https://github.com/test-user/test-repo/issues/42#issue-42424242">commented</a> on issue <a href="https://github.com/test-user/test-repo/issues/42">#42 (Test Issue Title)</a>: This content is very long, longer than our character limit, so it will d…"#,
         );
+    }
+
+    #[test]
+    fn test_handle_issues() {
+        let event = IssuesEvent {
+            repository: Repository {
+                name: "test-repo".to_string(),
+                full_name: "test-user/test-repo".to_string(),
+                html_url: Url::parse("https://github.com/test-user/test-repo").unwrap(),
+            },
+            sender: GitHubUser {
+                login: "test-user".to_string(),
+                id: 42,
+            },
+            issue: Issue {
+                number: 42,
+                html_url: Url::parse("https://github.com/test-user/test-repo/issues/42").unwrap(),
+                title: "Test Issue Title".to_string(),
+                milestone: None,
+                pull_request: None,
+            },
+            changes: None,
+            assignee: None,
+            action: "opened".to_string(),
+        };
+
+        let response = handle_issues(event).expect("should have a response");
+
+        let message = response.message;
+
+        assert!(message.url.is_some());
+
+        assert_eq!(
+            message.plain,
+            "[🔧 test-repo] test-user opened issue #42 (Test Issue Title)",
+        );
+
+        assert_eq!(
+            message.html,
+            r#"<b>[🔧 test-repo]</b> test-user opened issue <a href="https://github.com/test-user/test-repo/issues/42">#42 (Test Issue Title)</a>"#,
+        );
+    }
+
+    #[test]
+    fn test_handle_membership() {
+        todo!();
+    }
+
+    #[test]
+    fn test_handle_organization() {
+        todo!();
+    }
+
+    #[test]
+    fn test_handle_ping() {
+        todo!();
     }
 
     #[test]
@@ -982,5 +1007,10 @@ mod tests {
             message.html,
             r#"<b>[test-repo]</b> test-user force-pushed <a href="https://github.com/test-user/test-repo/compare/deadbeef...beefdead">2 commits including deadbee</a> on new <a href="https://github.com/test-user/test-repo/tree/new-test-branch">⊶new-test-branch</a>: This content is very long, longer than our character limit, so it will d…"#,
         );
+    }
+
+    #[test]
+    fn test_handle_repository() {
+        todo!();
     }
 }
