@@ -10,6 +10,7 @@ mod create;
 mod fork;
 mod issue_comment;
 mod issues;
+mod membership;
 mod organization;
 mod ping;
 mod pull_request;
@@ -24,6 +25,7 @@ pub use create::*;
 pub use fork::*;
 pub use issue_comment::*;
 pub use issues::*;
+pub use membership::*;
 pub use organization::*;
 pub use ping::*;
 pub use pull_request::*;
@@ -35,13 +37,14 @@ pub use types::*;
 
 #[derive(Debug)]
 pub enum GitHubEvent {
-    Ping(PingEvent),
     CommitComment(CommitCommentEvent),
     Create(CreateEvent),
     Fork(ForkEvent),
     IssueComment(IssueCommentEvent),
     Issues(IssuesEvent),
+    Membership(MembershipEvent),
     Organization(OrganizationEvent),
+    Ping(PingEvent),
     PullRequest(PullRequestEvent),
     PullRequestReview(PullRequestReviewEvent),
     PullRequestReviewComment(PullRequestReviewCommentEvent),
@@ -154,5 +157,15 @@ pub struct PrRef {
 
 #[derive(Debug, Deserialize)]
 pub struct PullRequestLinks {
+    pub html_url: Url,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct Team {
+    pub name: String,
+    pub id: u64,
+    pub description: String,
+    pub privacy: String,
+    pub permission: String,
     pub html_url: Url,
 }

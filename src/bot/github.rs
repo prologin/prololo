@@ -1,6 +1,6 @@
 use std::fmt::Write;
 
-use tracing::error;
+use tracing::{error, info};
 use url::Url;
 
 use crate::{
@@ -20,45 +20,22 @@ const SHORT_HASH_LENGTH: usize = 7;
 
 pub fn handle_github_event(event: GitHubEvent) -> anyhow::Result<Option<Response>> {
     let response = match event {
-        GitHubEvent::Ping(event) => handle_ping(event),
         GitHubEvent::CommitComment(event) => handle_commit_comment(event),
         GitHubEvent::Create(event) => handle_create(event),
         GitHubEvent::Fork(event) => handle_fork(event),
-        GitHubEvent::Issues(event) => handle_issues(event),
         GitHubEvent::IssueComment(event) => handle_issue_comment(event),
+        GitHubEvent::Issues(event) => handle_issues(event),
+        GitHubEvent::Membership(event) => handle_membership(event),
         GitHubEvent::Organization(event) => handle_organization(event),
-        GitHubEvent::Push(event) => handle_push(event),
+        GitHubEvent::Ping(event) => handle_ping(event),
         GitHubEvent::PullRequest(event) => handle_pull_request(event),
         GitHubEvent::PullRequestReview(event) => handle_pull_request_review(event),
         GitHubEvent::PullRequestReviewComment(event) => handle_pull_request_review_comment(event),
+        GitHubEvent::Push(event) => handle_push(event),
         GitHubEvent::Repository(event) => handle_repository(event),
     };
 
     Ok(response)
-}
-
-fn handle_ping(event: PingEvent) -> Option<Response> {
-    let mut message = MessageBuilder::new();
-
-    match &(event.repository) {
-        Some(repo) => {
-            message.tag(&repo.name, Some(emoji::PING_PONG));
-            write!(&mut message, " ").unwrap();
-        }
-        None => {}
-    }
-
-    write!(
-        &mut message,
-        "{} completed webhook setup! {}",
-        event.sender.login, event.zen
-    )
-    .unwrap();
-
-    Some(Response {
-        message,
-        repo: event.repository.map(|r| r.full_name),
-    })
 }
 
 fn handle_commit_comment(event: crate::webhooks::github::CommitCommentEvent) -> Option<Response> {
@@ -241,6 +218,49 @@ fn handle_issue_comment(event: IssueCommentEvent) -> Option<Response> {
     })
 }
 
+fn handle_membership(event: crate::webhooks::github::MembershipEvent) -> Option<Response> {
+    let action = event.action;
+
+    let mut message = MessageBuilder::new();
+
+    message.tag(&event.team.name, Some(emoji::PEOPLE));
+
+    // Do not leak secret teams
+    if event.team.privacy == "secret" {
+        info!("Team {} is secret, not sending anything", event.team.name);
+        return None;
+    }
+
+    match action.as_str() {
+        "added" => {
+            write!(
+                &mut message,
+                " {} added {} to team",
+                event.sender.login, event.member.login,
+            )
+            .unwrap();
+        }
+        "removed" => {
+            write!(
+                &mut message,
+                " {} removed {} from team",
+                event.sender.login, event.member.login,
+            )
+            .unwrap();
+        }
+
+        _ => {
+            error!("invalid or unsupported membership action: {}", action);
+            return None;
+        }
+    };
+
+    Some(Response {
+        message,
+        repo: None,
+    })
+}
+
 fn handle_organization(event: OrganizationEvent) -> Option<Response> {
     let action = event.action;
 
@@ -255,11 +275,8 @@ fn handle_organization(event: OrganizationEvent) -> Option<Response> {
 
             write!(
                 &mut message,
-                "{} invited {} {} to organization as {}",
-                event.sender.login,
-                emoji::PEOPLE,
-                user.login,
-                invitation.role
+                "{} invited {} to organization as {}",
+                event.sender.login, user.login, invitation.role
             )
             .unwrap();
         }
@@ -270,11 +287,8 @@ fn handle_organization(event: OrganizationEvent) -> Option<Response> {
 
             write!(
                 &mut message,
-                "{} added {} {} to organization as {}",
-                event.sender.login,
-                emoji::PEOPLE,
-                membership.user.login,
-                membership.role,
+                "{} added {} to organization as {}",
+                event.sender.login, membership.user.login, membership.role,
             )
             .unwrap();
         }
@@ -304,6 +318,30 @@ fn handle_organization(event: OrganizationEvent) -> Option<Response> {
     Some(Response {
         message,
         repo: None,
+    })
+}
+
+fn handle_ping(event: PingEvent) -> Option<Response> {
+    let mut message = MessageBuilder::new();
+
+    match &(event.repository) {
+        Some(repo) => {
+            message.tag(&repo.name, Some(emoji::PING_PONG));
+            write!(&mut message, " ").unwrap();
+        }
+        None => {}
+    }
+
+    write!(
+        &mut message,
+        "{} completed webhook setup! {}",
+        event.sender.login, event.zen
+    )
+    .unwrap();
+
+    Some(Response {
+        message,
+        repo: event.repository.map(|r| r.full_name),
     })
 }
 
