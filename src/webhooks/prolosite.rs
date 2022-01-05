@@ -122,6 +122,7 @@ pub(crate) struct Request {
 #[derive(Debug, Deserialize)]
 pub(crate) struct Exception {
     pub(crate) value: String,
+    #[allow(dead_code)]
     pub(crate) trace: Vec<String>,
 }
 

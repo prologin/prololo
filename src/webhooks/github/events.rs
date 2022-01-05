@@ -5,33 +5,51 @@ use url::Url;
 
 use crate::bot::utils::shorten_content;
 
+mod commit_comment;
 mod create;
+mod fork;
 mod issue_comment;
 mod issues;
+mod membership;
+mod organization;
+mod ping;
 mod pull_request;
 mod pull_request_review;
 mod pull_request_review_comment;
 mod push;
+mod repository;
 mod types;
 
+pub use commit_comment::*;
 pub use create::*;
+pub use fork::*;
 pub use issue_comment::*;
 pub use issues::*;
+pub use membership::*;
+pub use organization::*;
+pub use ping::*;
 pub use pull_request::*;
 pub use pull_request_review::*;
 pub use pull_request_review_comment::*;
 pub use push::*;
+pub use repository::*;
 pub use types::*;
 
 #[derive(Debug)]
 pub enum GitHubEvent {
+    CommitComment(CommitCommentEvent),
     Create(CreateEvent),
+    Fork(ForkEvent),
     IssueComment(IssueCommentEvent),
     Issues(IssuesEvent),
+    Membership(MembershipEvent),
+    Organization(OrganizationEvent),
+    Ping(PingEvent),
     PullRequest(PullRequestEvent),
     PullRequestReview(PullRequestReviewEvent),
     PullRequestReviewComment(PullRequestReviewCommentEvent),
     Push(PushEvent),
+    Repository(RepositoryEvent),
 }
 
 #[derive(Debug, Deserialize)]
@@ -89,6 +107,7 @@ pub struct Milestone {
 pub struct Comment {
     pub html_url: Url,
     pub body: String,
+    pub commit_id: Option<String>,
     pub pull_request_review_id: Option<u64>,
     pub path: Option<String>,
     pub position: Option<u64>,
@@ -138,5 +157,15 @@ pub struct PrRef {
 
 #[derive(Debug, Deserialize)]
 pub struct PullRequestLinks {
-    html_url: Url,
+    pub html_url: Url,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct Team {
+    pub name: String,
+    pub id: u64,
+    pub description: String,
+    pub privacy: String,
+    pub permission: String,
+    pub html_url: Url,
 }

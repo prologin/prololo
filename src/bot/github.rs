@@ -1,14 +1,15 @@
 use std::fmt::Write;
 
-use tracing::error;
+use tracing::{error, info};
 use url::Url;
 
 use crate::{
     bot::{emoji, message_builder::MessageBuilder, utils::shorten_content, Response},
     webhooks::{
         github::{
-            CreateEvent, IssueCommentEvent, IssuesEvent, PullRequestEvent,
-            PullRequestReviewCommentEvent, PullRequestReviewEvent, PushEvent, RefType,
+            CreateEvent, IssueCommentEvent, IssuesEvent, OrganizationEvent, PingEvent,
+            PullRequestEvent, PullRequestReviewCommentEvent, PullRequestReviewEvent, PushEvent,
+            RefType, RepositoryEvent,
         },
         GitHubEvent,
     },
@@ -19,16 +20,49 @@ const SHORT_HASH_LENGTH: usize = 7;
 
 pub fn handle_github_event(event: GitHubEvent) -> anyhow::Result<Option<Response>> {
     let response = match event {
+        GitHubEvent::CommitComment(event) => handle_commit_comment(event),
         GitHubEvent::Create(event) => handle_create(event),
-        GitHubEvent::Issues(event) => handle_issues(event),
+        GitHubEvent::Fork(event) => handle_fork(event),
         GitHubEvent::IssueComment(event) => handle_issue_comment(event),
-        GitHubEvent::Push(event) => handle_push(event),
+        GitHubEvent::Issues(event) => handle_issues(event),
+        GitHubEvent::Membership(event) => handle_membership(event),
+        GitHubEvent::Organization(event) => handle_organization(event),
+        GitHubEvent::Ping(event) => handle_ping(event),
         GitHubEvent::PullRequest(event) => handle_pull_request(event),
         GitHubEvent::PullRequestReview(event) => handle_pull_request_review(event),
         GitHubEvent::PullRequestReviewComment(event) => handle_pull_request_review_comment(event),
+        GitHubEvent::Push(event) => handle_push(event),
+        GitHubEvent::Repository(event) => handle_repository(event),
     };
 
     Ok(response)
+}
+
+fn handle_commit_comment(event: crate::webhooks::github::CommitCommentEvent) -> Option<Response> {
+    let comment = event.comment;
+    let commit_id = comment
+        .commit_id
+        .expect("commit comment without a commit id");
+
+    let mut commit_html_url = comment.html_url.clone();
+    commit_html_url.set_fragment(None);
+
+    let mut message = MessageBuilder::new();
+
+    message.tag(&event.repository.name, Some(emoji::SPEECH_BALLOON));
+
+    write!(&mut message, " {} ", event.sender.login).unwrap();
+
+    message.main_link("commented", &comment.html_url);
+    write!(message, " on ").unwrap();
+    message.link(&commit_id[..SHORT_HASH_LENGTH], &commit_html_url);
+
+    write!(message, ": {}", shorten_content(&comment.body)).unwrap();
+
+    Some(Response {
+        message,
+        repo: Some(event.repository.full_name),
+    })
 }
 
 fn handle_create(event: CreateEvent) -> Option<Response> {
@@ -55,6 +89,58 @@ fn handle_create(event: CreateEvent) -> Option<Response> {
             message.main_link(&event.r#ref, &ref_url)
         }
     };
+
+    Some(Response {
+        message,
+        repo: Some(event.repository.full_name),
+    })
+}
+
+fn handle_fork(event: crate::webhooks::github::ForkEvent) -> Option<Response> {
+    let mut message = MessageBuilder::new();
+
+    message.tag(&event.repository.name, Some(emoji::PACKAGE));
+    write!(&mut message, " {} forked into ", event.sender.login).unwrap();
+    message.main_link(&event.forkee.full_name, &event.forkee.html_url);
+
+    Some(Response {
+        message,
+        repo: Some(event.repository.full_name),
+    })
+}
+
+fn handle_issue_comment(event: IssueCommentEvent) -> Option<Response> {
+    let action = event.action;
+    let comment = event.comment;
+    let issue = event.issue;
+
+    // Comments left on PRs are considered as issue comments as well
+    let issue_or_pr = match issue.pull_request {
+        Some(_) => "PR",
+        None => "issue",
+    };
+
+    let mut message = MessageBuilder::new();
+
+    message.tag(&event.repository.name, Some(emoji::WRENCH));
+
+    write!(&mut message, " {} ", event.sender.login).unwrap();
+
+    match action.as_str() {
+        "created" => {
+            message.main_link("commented", &comment.html_url);
+            write!(message, " on {} ", issue_or_pr,).unwrap();
+
+            message.link(&format!("{}", issue), &issue.html_url);
+
+            write!(message, ": {}", shorten_content(&comment.body),).unwrap();
+        }
+
+        // too verbose, don't log that
+        "edited" | "deleted" => return None,
+
+        _ => return None, // FIXME log error
+    }
 
     Some(Response {
         message,
@@ -135,45 +221,119 @@ fn handle_issues(event: IssuesEvent) -> Option<Response> {
     })
 }
 
-fn handle_issue_comment(event: IssueCommentEvent) -> Option<Response> {
+fn handle_membership(event: crate::webhooks::github::MembershipEvent) -> Option<Response> {
     let action = event.action;
-    let comment = event.comment;
-    let issue = event.issue;
-
-    // Comments left on PRs are considered as issue comments as well
-    let issue_or_pr = match issue.pull_request {
-        Some(_) => "PR",
-        None => "issue",
-    };
 
     let mut message = MessageBuilder::new();
 
-    message.tag(&event.repository.name, Some(emoji::WRENCH));
+    message.tag(&event.team.name, Some(emoji::PEOPLE));
 
-    write!(&mut message, " {} ", event.sender.login).unwrap();
+    // Do not leak secret teams
+    if event.team.privacy == "secret" {
+        info!("Team {} is secret, not sending anything", event.team.name);
+        return None;
+    }
 
-    match action.as_str() {
-        "created" => {
-            message.main_link("commented", &comment.html_url);
-            write!(message, " on {} ", issue_or_pr,).unwrap();
-
-            message.link(&format!("{}", issue), &issue.html_url);
-
-            write!(message, ": {}", shorten_content(&comment.body),).unwrap();
-        }
-
-        // too verbose, don't log that
-        "edited" | "deleted" => return None,
-
+    let preposition = match action.as_str() {
+        "added" => "to",
+        "removed" => "from",
         _ => {
-            error!("invalid or unsupported issue comment action: {}", action);
+            error!("invalid or unsupported membership action: {}", action);
             return None;
         }
-    }
+    };
+
+    write!(
+        &mut message,
+        " {} {} {} {} the team",
+        event.sender.login, action, event.member.login, preposition
+    )
+    .unwrap();
 
     Some(Response {
         message,
-        repo: Some(event.repository.full_name),
+        repo: None,
+    })
+}
+
+fn handle_organization(event: OrganizationEvent) -> Option<Response> {
+    let action = event.action;
+
+    let mut message = MessageBuilder::new();
+
+    match action.as_str() {
+        "member_invited" => {
+            let invitation = event
+                .invitation
+                .expect("member was invited but no invitation is set");
+            let user = event.user.expect("member was invited but no user is set");
+
+            write!(
+                &mut message,
+                "{} invited {} to organization as {}",
+                event.sender.login, user.login, invitation.role
+            )
+            .unwrap();
+        }
+        "member_added" => {
+            let membership = event
+                .membership
+                .expect("member was added but no membership is set");
+
+            write!(
+                &mut message,
+                "{} added {} to organization as {}",
+                event.sender.login, membership.user.login, membership.role,
+            )
+            .unwrap();
+        }
+        "member_removed" => {
+            let membership = event
+                .membership
+                .expect("member was added but no membership is set");
+
+            write!(
+                &mut message,
+                "{} removed {} from organization (was {})",
+                event.sender.login, membership.user.login, membership.role,
+            )
+            .unwrap();
+        }
+
+        // TODO maybe handle `renamed` and `deleted` actions even tho it should not happen in our case
+        _ => {
+            error!("invalid or unsupported organization action: {}", action);
+            return None;
+        }
+    };
+
+    Some(Response {
+        message,
+        repo: None,
+    })
+}
+
+fn handle_ping(event: PingEvent) -> Option<Response> {
+    let mut message = MessageBuilder::new();
+
+    match &(event.repository) {
+        Some(repo) => {
+            message.tag(&repo.name, Some(emoji::PING_PONG));
+            write!(&mut message, " ").unwrap();
+        }
+        None => {}
+    }
+
+    write!(
+        &mut message,
+        "{} completed webhook setup! {}",
+        event.sender.login, event.zen
+    )
+    .unwrap();
+
+    Some(Response {
+        message,
+        repo: event.repository.map(|r| r.full_name),
     })
 }
 
@@ -437,13 +597,98 @@ fn handle_push(event: PushEvent) -> Option<Response> {
     })
 }
 
+fn handle_repository(event: RepositoryEvent) -> Option<Response> {
+    let mut message = MessageBuilder::new();
+
+    match event.action.as_str() {
+        "created" | "deleted" | "archived" | "unarchived" | "transferred" | "publicized"
+        | "privatized" => {
+            message.tag(&event.repository.name, Some(emoji::PACKAGE));
+
+            write!(
+                &mut message,
+                " {} {} repository",
+                event.sender.login, event.action
+            )
+            .unwrap();
+        }
+
+        "renamed" => {
+            let old_repo_name = event
+                .changes
+                .expect("no changes reported even if repository was renamed")
+                .repository
+                .name
+                .from;
+
+            message.tag(&old_repo_name, Some(emoji::PACKAGE));
+
+            write!(
+                &mut message,
+                " {} renamed repository to {}",
+                event.sender.login, event.repository.name
+            )
+            .unwrap();
+        }
+
+        "edited" => return None, // ignore, too verbose
+
+        _ => {
+            error!("invalid or unsupported repository action: {}", event.action);
+            return None;
+        }
+    }
+
+    Some(Response {
+        message,
+        repo: Some(event.repository.full_name),
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use crate::webhooks::github::{
-        Comment, Commit, GitHubUser, Issue, PrRef, PullRequest, Repository, Review,
+        Comment, Commit, CommitCommentEvent, ForkEvent, GitHubUser, Issue, MembershipEvent,
+        OrganizationMembership, PrRef, PullRequest, Repository, Review, Team,
     };
 
     use super::*;
+
+    #[test]
+    fn test_handle_commit_comment() {
+        let event = CommitCommentEvent {
+            sender: GitHubUser {
+                login: "test-user".to_string(),
+                id: 42,
+            },
+            repository: Repository {
+                name: "test-repo".to_string(),
+                full_name: "test-user/test-repo".to_string(),
+                html_url: Url::parse("https://github.com/test-user/test-repo").unwrap(),
+            },
+            comment: Comment {
+                html_url: Url::parse("https://github.com/test-user/test-repo/issues/42#issue-42424242").unwrap(),
+                body: "This content is very long, longer than our character limit, so it will definitely be truncated".to_string(),
+                commit_id: Some("4242424242424242424242424242424242424242".to_string()),
+                pull_request_review_id: None,
+                path: None,
+                position: None,
+            },
+        };
+
+        let response = handle_commit_comment(event).expect("should have a response");
+
+        let message = response.message;
+
+        assert!(message.url.is_some());
+
+        assert_eq!(message.plain, "[💬 test-repo] test-user commented on 4242424: This content is very long, longer than our character limit, so it will d…",);
+
+        assert_eq!(
+            message.html,
+            r#"<b>[💬 test-repo]</b> test-user <a href="https://github.com/test-user/test-repo/issues/42#issue-42424242">commented</a> on <a href="https://github.com/test-user/test-repo/issues/42">4242424</a>: This content is very long, longer than our character limit, so it will d…"#,
+        );
+    }
 
     #[test]
     fn test_handle_create() {
@@ -472,6 +717,89 @@ mod tests {
         assert_eq!(
             message.html,
             r#"<b>[test-repo]</b> test-user created tag <a href="https://github.com/test-user/test-repo/tree/test-tag">test-tag</a>"#,
+        );
+    }
+
+    #[test]
+    fn test_handle_fork() {
+        let event = ForkEvent {
+            forkee: Repository {
+                name: "test-repo".to_string(),
+                full_name: "test-user2/test-repo".to_string(),
+                html_url: Url::parse("https://github.com/test-user2/test-repo").unwrap(),
+            },
+            repository: Repository {
+                name: "test-repo".to_string(),
+                full_name: "test-user/test-repo".to_string(),
+                html_url: Url::parse("https://github.com/test-user/test-repo").unwrap(),
+            },
+            sender: GitHubUser {
+                login: "test-user2".to_string(),
+                id: 420,
+            },
+        };
+
+        let response = handle_fork(event).expect("should have a response");
+
+        let message = response.message;
+
+        assert!(message.url.is_some());
+
+        assert_eq!(
+            message.plain,
+            "[📦 test-repo] test-user2 forked into test-user2/test-repo",
+        );
+
+        assert_eq!(
+            message.html,
+            r#"<b>[📦 test-repo]</b> test-user2 forked into <a href="https://github.com/test-user2/test-repo">test-user2/test-repo</a>"#,
+        );
+    }
+
+    #[test]
+    fn test_handle_issue_comment() {
+        let event = IssueCommentEvent {
+            sender: GitHubUser {
+                login: "test-user".to_string(),
+                id: 42,
+            },
+            repository: Repository {
+                name: "test-repo".to_string(),
+                full_name: "test-user/test-repo".to_string(),
+                html_url: Url::parse("https://github.com/test-user/test-repo").unwrap(),
+            },
+            issue: Issue {
+                number: 42,
+                html_url: Url::parse("https://github.com/test-user/test-repo/issues/42").unwrap(),
+                title: "Test Issue Title".to_string(),
+                milestone: None,
+                pull_request: None,
+            },
+            action: "created".to_string(),
+            comment: Comment {
+                html_url: Url::parse("https://github.com/test-user/test-repo/issues/42#issue-42424242").unwrap(),
+                body: "This content is very long, longer than our character limit, so it will definitely be truncated".to_string(),
+                commit_id: None,
+                pull_request_review_id: None,
+                path: None,
+                position: None,
+            },
+        };
+
+        let response = handle_issue_comment(event).expect("should have a response");
+
+        let message = response.message;
+
+        assert!(message.url.is_some());
+
+        assert_eq!(
+            message.plain,
+            "[🔧 test-repo] test-user commented on issue #42 (Test Issue Title): This content is very long, longer than our character limit, so it will d…",
+        );
+
+        assert_eq!(
+            message.html,
+            r#"<b>[🔧 test-repo]</b> test-user <a href="https://github.com/test-user/test-repo/issues/42#issue-42424242">commented</a> on issue <a href="https://github.com/test-user/test-repo/issues/42">#42 (Test Issue Title)</a>: This content is very long, longer than our character limit, so it will d…"#,
         );
     }
 
@@ -517,48 +845,109 @@ mod tests {
     }
 
     #[test]
-    fn test_handle_issue_comment() {
-        let event = IssueCommentEvent {
-            sender: GitHubUser {
+    fn test_handle_membership() {
+        let event = MembershipEvent {
+            action: "added".to_string(),
+            member: GitHubUser {
                 login: "test-user".to_string(),
                 id: 42,
             },
-            repository: Repository {
-                name: "test-repo".to_string(),
-                full_name: "test-user/test-repo".to_string(),
-                html_url: Url::parse("https://github.com/test-user/test-repo").unwrap(),
+            team: Team {
+                name: "test-team".to_string(),
+                id: 42,
+                description: String::new(),
+                privacy: "closed".to_string(),
+                permission: "pull".to_string(),
+                html_url: Url::parse("https://github.com/orgs/test-org/teams/test-team").unwrap(),
             },
-            issue: Issue {
-                number: 42,
-                html_url: Url::parse("https://github.com/test-user/test-repo/issues/42").unwrap(),
-                title: "Test Issue Title".to_string(),
-                milestone: None,
-                pull_request: None,
-            },
-            action: "created".to_string(),
-            comment: Comment {
-                html_url: Url::parse("https://github.com/test-user/test-repo/issues/42#issue-42424242").unwrap(),
-                body: "This content is very long, longer than our character limit, so it will definitely be truncated".to_string(),
-                pull_request_review_id: None,
-                path: None,
-                position: None,
+            sender: GitHubUser {
+                login: "test-admin".to_string(),
+                id: 4242,
             },
         };
 
-        let response = handle_issue_comment(event).expect("should have a response");
+        let response = handle_membership(event).expect("should have a response");
 
         let message = response.message;
 
-        assert!(message.url.is_some());
+        assert!(message.url.is_none());
 
         assert_eq!(
             message.plain,
-            "[🔧 test-repo] test-user commented on issue #42 (Test Issue Title): This content is very long, longer than our character limit, so it will d…",
+            "[🧑 test-team] test-admin added test-user to the team",
         );
 
         assert_eq!(
             message.html,
-            r#"<b>[🔧 test-repo]</b> test-user <a href="https://github.com/test-user/test-repo/issues/42#issue-42424242">commented</a> on issue <a href="https://github.com/test-user/test-repo/issues/42">#42 (Test Issue Title)</a>: This content is very long, longer than our character limit, so it will d…"#,
+            r#"<b>[🧑 test-team]</b> test-admin added test-user to the team"#,
+        );
+    }
+
+    #[test]
+    fn test_handle_organization() {
+        let event = OrganizationEvent {
+            action: "member_added".to_string(),
+            sender: GitHubUser {
+                login: "test-admin".to_string(),
+                id: 4242,
+            },
+            invitation: None,
+            user: None,
+            membership: Some(OrganizationMembership {
+                role: "member".to_string(),
+                user: GitHubUser {
+                    login: "test-user".to_string(),
+                    id: 42,
+                },
+            }),
+        };
+
+        let response = handle_organization(event).expect("should have a response");
+
+        let message = response.message;
+
+        assert!(message.url.is_none());
+
+        assert_eq!(
+            message.plain,
+            "test-admin added test-user to organization as member",
+        );
+
+        assert_eq!(
+            message.html,
+            r#"test-admin added test-user to organization as member"#,
+        );
+    }
+
+    #[test]
+    fn test_handle_ping() {
+        let event = PingEvent {
+            zen: "Follow the rules, you must!".to_string(),
+            repository: Some(Repository {
+                name: "test-repo".to_string(),
+                full_name: "test-user/test-repo".to_string(),
+                html_url: Url::parse("https://github.com/test-user/test-repo").unwrap(),
+            }),
+            sender: GitHubUser {
+                login: "test-user".to_string(),
+                id: 42,
+            },
+        };
+
+        let response = handle_ping(event).expect("should have a response");
+
+        let message = response.message;
+
+        assert!(message.url.is_none());
+
+        assert_eq!(
+            message.plain,
+            "[🏓 test-repo] test-user completed webhook setup! Follow the rules, you must!",
+        );
+
+        assert_eq!(
+            message.html,
+            r#"<b>[🏓 test-repo]</b> test-user completed webhook setup! Follow the rules, you must!"#,
         );
     }
 
@@ -702,6 +1091,7 @@ mod tests {
             comment: Comment {
                 html_url: Url::parse("https://github.com/test-user/test-repo/whatever").unwrap(),
                 body: "This content is very long, longer than our character limit, so it will definitely be truncated".to_string(),
+                commit_id: None,
                 pull_request_review_id: None,
                 path: None,
                 position: None,
@@ -782,6 +1172,36 @@ mod tests {
         assert_eq!(
             message.html,
             r#"<b>[test-repo]</b> test-user force-pushed <a href="https://github.com/test-user/test-repo/compare/deadbeef...beefdead">2 commits including deadbee</a> on new <a href="https://github.com/test-user/test-repo/tree/new-test-branch">⊶new-test-branch</a>: This content is very long, longer than our character limit, so it will d…"#,
+        );
+    }
+
+    #[test]
+    fn test_handle_repository() {
+        let event = RepositoryEvent {
+            action: "created".to_string(),
+            repository: Repository {
+                name: "test-repo".to_string(),
+                full_name: "test-user/test-repo".to_string(),
+                html_url: Url::parse("https://github.com/test-user/test-repo").unwrap(),
+            },
+            sender: GitHubUser {
+                login: "test-user".to_string(),
+                id: 42,
+            },
+            changes: None,
+        };
+
+        let response = handle_repository(event).expect("should have a response");
+
+        let message = response.message;
+
+        assert!(message.url.is_none());
+
+        assert_eq!(message.plain, "[📦 test-repo] test-user created repository",);
+
+        assert_eq!(
+            message.html,
+            r#"<b>[📦 test-repo]</b> test-user created repository"#,
         );
     }
 }

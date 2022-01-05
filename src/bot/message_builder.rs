@@ -9,6 +9,7 @@ enum Style {
     Bold,
     Code,
     Span,
+    Italic,
 }
 
 impl Style {
@@ -17,6 +18,7 @@ impl Style {
             Self::Bold => "</b>",
             Self::Code => "</code>",
             Self::Span => "</span>",
+            Self::Italic => "</i>",
         }
     }
 }
@@ -56,6 +58,11 @@ impl MessageBuilder {
     pub fn color(&mut self, color: &str) {
         write!(self.html, r#"<span style="color: {}">"#, color).unwrap();
         self.style_stack.push(Style::Span);
+    }
+
+    pub fn italic(&mut self) {
+        self.html.push_str("<i>");
+        self.style_stack.push(Style::Italic);
     }
 
     pub fn tag(&mut self, tag: &str, emoji: Option<char>) {
