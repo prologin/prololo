@@ -14,7 +14,7 @@ use matrix_sdk::{
     Client, ClientConfig, Session, SyncSettings,
 };
 use tokio::sync::mpsc::UnboundedReceiver;
-use tracing::{debug, info, trace, warn};
+use tracing::{debug, error, info, trace, warn};
 
 use crate::{config::ProloloConfig, webhooks::Event};
 
@@ -163,33 +163,44 @@ impl Prololo {
         let session_file = PathBuf::from("matrix-session.yaml");
 
         if session_file.is_file() {
-            let reader = BufReader::new(File::open(session_file)?);
+            let reader = BufReader::new(File::open(&session_file)?);
             let session: Session = serde_yaml::from_reader(reader)?;
 
             self.client.restore_login(session.clone()).await?;
-            info!("Reused session: {}, {}", session.user_id, session.device_id);
-        } else {
-            let response = self
-                .client
-                .login(
-                    &self.config.matrix_username,
-                    &self.config.matrix_password,
-                    None,
-                    Some("autojoin bot"),
-                )
-                .await?;
 
-            info!("logged in as {}", self.config.matrix_username);
-
-            let session = Session {
-                access_token: response.access_token,
-                user_id: response.user_id,
-                device_id: response.device_id,
+            // Check that the session restored session is valid
+            match self.client.sync_once(SyncSettings::default()).await {
+                Ok(_) => {
+                    info!("Reused session: {}, {}", session.user_id, session.device_id);
+                    return Ok(());
+                }
+                Err(e) => error!(
+                    "Unable to reuse session: {}, {}: {}",
+                    session.user_id, session.device_id, e
+                ),
             };
-
-            let writer = BufWriter::new(File::create(session_file)?);
-            serde_yaml::to_writer(writer, &session)?;
         }
+
+        let response = self
+            .client
+            .login(
+                &self.config.matrix_username,
+                &self.config.matrix_password,
+                None,
+                Some("autojoin bot"),
+            )
+            .await?;
+
+        info!("Logged in as {}", self.config.matrix_username);
+
+        let session = Session {
+            access_token: response.access_token,
+            user_id: response.user_id,
+            device_id: response.device_id,
+        };
+
+        let writer = BufWriter::new(File::create(&session_file)?);
+        serde_yaml::to_writer(writer, &session)?;
 
         Ok(())
     }
