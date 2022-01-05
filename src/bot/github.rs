@@ -207,7 +207,10 @@ fn handle_issues(event: IssuesEvent) -> Option<Response> {
         // https://github.com/isaacs/github/issues/880
         "demilestoned" => write!(message, " removed the milestone from ").unwrap(),
 
-        _ => return None, // FIXME log error
+        _ => {
+            error!("invalid or unsupported issues action: {}", action);
+            return None;
+        }
     }
 
     message.main_link(&format!("{}", issue), &issue.html_url);
@@ -395,7 +398,10 @@ fn handle_pull_request(event: PullRequestEvent) -> Option<Response> {
             message.main_link(&format!("{}", pr), &pr.html_url);
         }
 
-        _ => return None, // FIXME log error
+        _ => {
+            error!("invalid or unsupported pull request action: {}", action);
+            return None;
+        }
     }
 
     Some(Response {
@@ -415,9 +421,14 @@ fn handle_pull_request_review(event: PullRequestReviewEvent) -> Option<Response>
     let decision = match state.to_lowercase().as_str() {
         "approved" => "approved",
         "changes_requested" => "requested changes on",
-        // FIXME: couldn't find the value of state for comment reviews, find out what it is and make
-        //        sure there's a proper error in other cases
-        _ => "commented on",
+        "commented" => "commented on",
+        _ => {
+            error!(
+                "invalid or unsupported pull request review state: {}",
+                state
+            );
+            return None;
+        }
     };
 
     let mut message = MessageBuilder::new();
@@ -451,7 +462,13 @@ fn handle_pull_request_review(event: PullRequestReviewEvent) -> Option<Response>
             write!(message, " (they {} the PR)", decision).unwrap();
         }
 
-        _ => return None, // FIXME log error
+        _ => {
+            error!(
+                "invalid or unsupported pull request review action: {}",
+                action
+            );
+            return None;
+        }
     }
 
     Some(Response {
@@ -494,7 +511,13 @@ fn handle_pull_request_review_comment(event: PullRequestReviewCommentEvent) -> O
         // ignored, too verbose
         "edited" | "deleted" => return None,
 
-        _ => return None, // FIXME log error
+        _ => {
+            error!(
+                "invalid or unsupported pull request review comment action: {}",
+                action
+            );
+            return None;
+        }
     }
 
     Some(Response {
@@ -546,9 +569,8 @@ fn handle_push(event: PushEvent) -> Option<Response> {
 
     let branch = event
         .r#ref
-        .rsplit_once('/')
-        .expect("couldn't find branch name")
-        .1;
+        .strip_prefix("refs/heads/")
+        .expect("couldn't find branch name");
 
     write!(message, " on ").unwrap();
     if event.created {
@@ -1133,7 +1155,7 @@ mod tests {
                 "https://github.com/test-user/test-repo/compare/deadbeef...beefdead",
             )
                 .unwrap(),
-            r#ref: "ref/new-test-branch".to_string(),
+            r#ref: "refs/heads/new-test-branch".to_string(),
         };
 
         let response = handle_push(event).expect("should have a response");
