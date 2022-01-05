@@ -293,12 +293,9 @@ fn handle_organization(event: OrganizationEvent) -> Option<Response> {
         }
     };
 
-    write!(
-        &mut message,
-        "{} {} {} {} organization",
-        event.sender.login, action, user.login, preposition
-    )
-    .unwrap();
+    write!(&mut message, "{} {} ", event.sender.login, action).unwrap();
+    message.link(&user.login, &user.html_url);
+    write!(&mut message, " {} organization", preposition).unwrap();
 
     match action {
         "invited" | "added" => write!(&mut message, " as {}", role).unwrap(),
@@ -659,6 +656,7 @@ mod tests {
             sender: GitHubUser {
                 login: "test-user".to_string(),
                 id: 42,
+                html_url: Url::parse("https://github.com/test-user").unwrap(),
             },
             repository: Repository {
                 name: "test-repo".to_string(),
@@ -701,6 +699,7 @@ mod tests {
             sender: GitHubUser {
                 login: "test-user".to_string(),
                 id: 42,
+                html_url: Url::parse("https://github.com/test-user").unwrap(),
             },
             r#ref: "test-tag".to_string(),
         };
@@ -735,6 +734,7 @@ mod tests {
             sender: GitHubUser {
                 login: "test-user2".to_string(),
                 id: 420,
+                html_url: Url::parse("https://github.com/test-user").unwrap(),
             },
         };
 
@@ -761,6 +761,7 @@ mod tests {
             sender: GitHubUser {
                 login: "test-user".to_string(),
                 id: 42,
+                html_url: Url::parse("https://github.com/test-user").unwrap(),
             },
             repository: Repository {
                 name: "test-repo".to_string(),
@@ -813,6 +814,7 @@ mod tests {
             sender: GitHubUser {
                 login: "test-user".to_string(),
                 id: 42,
+                html_url: Url::parse("https://github.com/test-user").unwrap(),
             },
             issue: Issue {
                 number: 42,
@@ -850,6 +852,7 @@ mod tests {
             member: GitHubUser {
                 login: "test-user".to_string(),
                 id: 42,
+                html_url: Url::parse("https://github.com/test-user").unwrap(),
             },
             team: Team {
                 name: "test-team".to_string(),
@@ -862,6 +865,7 @@ mod tests {
             sender: GitHubUser {
                 login: "test-admin".to_string(),
                 id: 4242,
+                html_url: Url::parse("https://github.com/test-user").unwrap(),
             },
         };
 
@@ -889,6 +893,7 @@ mod tests {
             sender: GitHubUser {
                 login: "test-admin".to_string(),
                 id: 4242,
+                html_url: Url::parse("https://github.com/test-user").unwrap(),
             },
             invitation: None,
             user: None,
@@ -897,6 +902,7 @@ mod tests {
                 user: GitHubUser {
                     login: "test-user".to_string(),
                     id: 42,
+                    html_url: Url::parse("https://github.com/test-user").unwrap(),
                 },
             }),
         };
@@ -914,7 +920,7 @@ mod tests {
 
         assert_eq!(
             message.html,
-            r#"test-admin added test-user to organization as member"#,
+            r#"test-admin added <a href="https://github.com/test-user">test-user</a> to organization as member"#,
         );
     }
 
@@ -930,6 +936,7 @@ mod tests {
             sender: GitHubUser {
                 login: "test-user".to_string(),
                 id: 42,
+                html_url: Url::parse("https://github.com/test-user").unwrap(),
             },
         };
 
@@ -956,6 +963,7 @@ mod tests {
             sender: GitHubUser {
                 login: "test-user".to_string(),
                 id: 42,
+                html_url: Url::parse("https://github.com/test-user").unwrap(),
             },
             repository: Repository {
                 name: "test-repo".to_string(),
@@ -969,6 +977,7 @@ mod tests {
                 user: GitHubUser {
                     login: "test-user".to_string(),
                     id: 42,
+                    html_url: Url::parse("https://github.com/test-user").unwrap(),
                 },
                 requested_reviewers: vec![],
                 base: PrRef {
@@ -1006,6 +1015,7 @@ mod tests {
             sender: GitHubUser {
                 login: "test-user".to_string(),
                 id: 42,
+                html_url: Url::parse("https://github.com/test-user").unwrap(),
             },
             repository: Repository {
                 name: "test-repo".to_string(),
@@ -1019,6 +1029,7 @@ mod tests {
                 user: GitHubUser {
                     login: "test-user".to_string(),
                     id: 42,
+                    html_url: Url::parse("https://github.com/test-user").unwrap(),
                 },
                 requested_reviewers: vec![],
                 base: PrRef {
@@ -1035,6 +1046,7 @@ mod tests {
                 user: GitHubUser {
                     login: "test-user".to_string(),
                     id: 42,
+                    html_url: Url::parse("https://github.com/test-user").unwrap(),
                 },
                 html_url: Url::parse("https://github.com/test-user/test-repo/whatever").unwrap(),
             },
@@ -1063,6 +1075,7 @@ mod tests {
             sender: GitHubUser {
                 login: "test-user".to_string(),
                 id: 42,
+                html_url: Url::parse("https://github.com/test-user").unwrap(),
             },
             repository: Repository {
                 name: "test-repo".to_string(),
@@ -1076,6 +1089,7 @@ mod tests {
                 user: GitHubUser {
                     login: "test-user".to_string(),
                     id: 42,
+                html_url: Url::parse("https://github.com/test-user").unwrap(),
                 },
                 requested_reviewers: vec![],
                 base: PrRef {
@@ -1125,6 +1139,7 @@ mod tests {
             sender: GitHubUser {
                 login: "test-user".to_string(),
                 id: 42,
+                html_url: Url::parse("https://github.com/test-user").unwrap(),
             },
             commits: vec![
                 Commit {
@@ -1186,6 +1201,7 @@ mod tests {
             sender: GitHubUser {
                 login: "test-user".to_string(),
                 id: 42,
+                html_url: Url::parse("https://github.com/test-user").unwrap(),
             },
             changes: None,
         };
