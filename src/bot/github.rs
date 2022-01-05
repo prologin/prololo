@@ -85,7 +85,6 @@ fn handle_create(event: CreateEvent) -> Option<Response> {
                     event.repository.html_url
                 }
             };
-            println!("{}", ref_url);
             message.main_link(&event.r#ref, &ref_url)
         }
     };
