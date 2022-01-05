@@ -260,43 +260,30 @@ fn handle_organization(event: OrganizationEvent) -> Option<Response> {
 
     let mut message = MessageBuilder::new();
 
-    match action.as_str() {
+    let (action, user, preposition, role) = match action.as_str() {
         "member_invited" => {
             let invitation = event
                 .invitation
                 .expect("member was invited but no invitation is set");
             let user = event.user.expect("member was invited but no user is set");
 
-            write!(
-                &mut message,
-                "{} invited {} to organization as {}",
-                event.sender.login, user.login, invitation.role
-            )
-            .unwrap();
+            ("invited", user, "to", invitation.role)
         }
         "member_added" => {
             let membership = event
                 .membership
                 .expect("member was added but no membership is set");
+            let user = membership.user;
 
-            write!(
-                &mut message,
-                "{} added {} to organization as {}",
-                event.sender.login, membership.user.login, membership.role,
-            )
-            .unwrap();
+            ("added", user, "to", membership.role)
         }
         "member_removed" => {
             let membership = event
                 .membership
-                .expect("member was added but no membership is set");
+                .expect("member was removed but no membership is set");
+            let user = membership.user;
 
-            write!(
-                &mut message,
-                "{} removed {} from organization (was {})",
-                event.sender.login, membership.user.login, membership.role,
-            )
-            .unwrap();
+            ("removed", user, "from", membership.role)
         }
 
         // TODO maybe handle `renamed` and `deleted` actions even tho it should not happen in our case
@@ -304,6 +291,19 @@ fn handle_organization(event: OrganizationEvent) -> Option<Response> {
             error!("invalid or unsupported organization action: {}", action);
             return None;
         }
+    };
+
+    write!(
+        &mut message,
+        "{} {} {} {} organization",
+        event.sender.login, action, user.login, preposition
+    )
+    .unwrap();
+
+    match action {
+        "invited" | "added" => write!(&mut message, " as {}", role).unwrap(),
+        "removed" => write!(&mut message, " (was {})", role).unwrap(),
+        _ => unreachable!(),
     };
 
     Some(Response {
