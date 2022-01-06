@@ -3,7 +3,7 @@ use std::io::BufReader;
 use std::path::PathBuf;
 
 use anyhow::Context;
-use clap::Clap;
+use clap::Parser;
 use rocket::routes;
 use tokio::sync::mpsc::unbounded_channel;
 
@@ -21,8 +21,8 @@ use webhooks::{
     EventSender,
 };
 
-#[derive(Clap)]
-#[clap(version = "0.1")]
+#[derive(Parser)]
+#[clap(version)]
 struct Opts {
     /// Configuration file for prololo
     #[clap(short, long, parse(from_os_str))]
@@ -53,4 +53,10 @@ async fn main() -> anyhow::Result<()> {
         .manage(GitHubSecret(github_secret))
         .manage(ProlositeSecret(prolosite_secret));
     rocket.launch().await.map_err(|err| anyhow::anyhow!(err))
+}
+
+#[test]
+fn check_clap_app() {
+    use clap::IntoApp;
+    Opts::into_app().debug_assert()
 }
