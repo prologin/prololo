@@ -8,6 +8,7 @@ pub(crate) use prolosite::ProloSiteEvent;
 
 pub struct EventSender(pub UnboundedSender<Event>);
 
+#[allow(clippy::large_enum_variant)]
 #[derive(Debug)]
 pub enum Event {
     GitHub(GitHubEvent),
