@@ -26,7 +26,7 @@ url = { version = "2.2", features = [ "serde" ] }
 [dependencies.matrix-sdk]
 version = "0.4.1"
 default-features = false
-features = [ "native-tls" ]
+features = [ "native-tls", "sled_state_store" ]
 
 [dependencies.clap]
 version = "3.0.0-beta.4"
