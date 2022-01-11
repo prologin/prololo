@@ -99,7 +99,9 @@ fn handle_fork(event: crate::webhooks::github::ForkEvent) -> Option<Response> {
     let mut message = MessageBuilder::new();
 
     message.tag(&event.repository.name, Some(emoji::PACKAGE));
-    write!(&mut message, " {} forked into ", event.sender.login).unwrap();
+    write!(&mut message, " ").unwrap();
+    message.link(&event.sender.login, &event.sender.html_url);
+    write!(&mut message, " forked into ").unwrap();
     message.main_link(&event.forkee.full_name, &event.forkee.html_url);
 
     Some(Response {
@@ -242,12 +244,9 @@ fn handle_membership(event: crate::webhooks::github::MembershipEvent) -> Option<
         }
     };
 
-    write!(
-        &mut message,
-        " {} {} {} {} the team",
-        event.sender.login, action, event.member.login, preposition
-    )
-    .unwrap();
+    write!(&mut message, " {} {} ", event.sender.login, action).unwrap();
+    message.link(&event.member.login, &event.member.html_url);
+    write!(&mut message, " {} the team", preposition).unwrap();
 
     Some(Response {
         message,
@@ -751,7 +750,7 @@ mod tests {
 
         assert_eq!(
             message.html,
-            r#"<b>[📦 test-repo]</b> test-user2 forked into <a href="https://github.com/test-user2/test-repo">test-user2/test-repo</a>"#,
+            r#"<b>[📦 test-repo]</b> <a href="https://github.com/test-user">test-user2</a> forked into <a href="https://github.com/test-user2/test-repo">test-user2/test-repo</a>"#,
         );
     }
 
@@ -882,7 +881,7 @@ mod tests {
 
         assert_eq!(
             message.html,
-            r#"<b>[🧑 test-team]</b> test-admin added test-user to the team"#,
+            r#"<b>[🧑 test-team]</b> test-admin added <a href="https://github.com/test-user">test-user</a> to the team"#,
         );
     }
 
