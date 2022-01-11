@@ -188,16 +188,16 @@ fn handle_issues(event: IssuesEvent) -> Option<Response> {
                 .expect("edited issue without changes shouldn't happen");
 
             write!(message, " edited").unwrap();
-            if changes.title.is_some() && changes.body.is_some() {
-                write!(message, " title and body of issue ").unwrap();
-            } else if changes.title.is_some() {
-                write!(message, " title of issue ").unwrap();
-            } else if changes.body.is_some() {
-                write!(message, " body of issue ").unwrap();
-            } else {
-                error!("issue was edited but received an empty change!");
-                return None;
-            }
+            let changed = match (changes.title, changes.body) {
+                (Some(_), Some(_)) => "title and body",
+                (Some(_), None) => "title",
+                (None, Some(_)) => "body",
+                (None, None) => {
+                    error!("issue was edited but received an empty change!");
+                    return None;
+                }
+            };
+            write!(message, " {} of issue ", changed).unwrap();
         }
 
         "milestoned" => {
