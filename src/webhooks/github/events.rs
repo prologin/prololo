@@ -63,6 +63,7 @@ pub enum RefType {
 pub struct GitHubUser {
     pub login: String,
     pub id: u64,
+    pub html_url: Url,
 }
 
 #[derive(Debug, Deserialize)]

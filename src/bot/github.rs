@@ -99,7 +99,9 @@ fn handle_fork(event: crate::webhooks::github::ForkEvent) -> Option<Response> {
     let mut message = MessageBuilder::new();
 
     message.tag(&event.repository.name, Some(emoji::PACKAGE));
-    write!(&mut message, " {} forked into ", event.sender.login).unwrap();
+    write!(&mut message, " ").unwrap();
+    message.link(&event.sender.login, &event.sender.html_url);
+    write!(&mut message, " forked into ").unwrap();
     message.main_link(&event.forkee.full_name, &event.forkee.html_url);
 
     Some(Response {
@@ -138,7 +140,10 @@ fn handle_issue_comment(event: IssueCommentEvent) -> Option<Response> {
         // too verbose, don't log that
         "edited" | "deleted" => return None,
 
-        _ => return None, // FIXME log error
+        _ => {
+            error!("invalid or unsupported issue comment action: {}", action);
+            return None;
+        }
     }
 
     Some(Response {
@@ -183,16 +188,16 @@ fn handle_issues(event: IssuesEvent) -> Option<Response> {
                 .expect("edited issue without changes shouldn't happen");
 
             write!(message, " edited").unwrap();
-            if changes.title.is_some() {
-                write!(message, " title").unwrap();
-            }
-            if changes.body.is_some() {
-                if changes.title.is_some() {
-                    write!(message, ",").unwrap();
+            let changed = match (changes.title, changes.body) {
+                (Some(_), Some(_)) => "title and body",
+                (Some(_), None) => "title",
+                (None, Some(_)) => "body",
+                (None, None) => {
+                    error!("issue was edited but received an empty change!");
+                    return None;
                 }
-                write!(message, " body").unwrap();
-            }
-            write!(message, " of issue ").unwrap();
+            };
+            write!(message, " {} of issue ", changed).unwrap();
         }
 
         "milestoned" => {
@@ -242,12 +247,9 @@ fn handle_membership(event: crate::webhooks::github::MembershipEvent) -> Option<
         }
     };
 
-    write!(
-        &mut message,
-        " {} {} {} {} the team",
-        event.sender.login, action, event.member.login, preposition
-    )
-    .unwrap();
+    write!(&mut message, " {} {} ", event.sender.login, action).unwrap();
+    message.link(&event.member.login, &event.member.html_url);
+    write!(&mut message, " {} the team", preposition).unwrap();
 
     Some(Response {
         message,
@@ -260,43 +262,30 @@ fn handle_organization(event: OrganizationEvent) -> Option<Response> {
 
     let mut message = MessageBuilder::new();
 
-    match action.as_str() {
+    let (action, user, preposition, role) = match action.as_str() {
         "member_invited" => {
             let invitation = event
                 .invitation
                 .expect("member was invited but no invitation is set");
             let user = event.user.expect("member was invited but no user is set");
 
-            write!(
-                &mut message,
-                "{} invited {} to organization as {}",
-                event.sender.login, user.login, invitation.role
-            )
-            .unwrap();
+            ("invited", user, "to", invitation.role)
         }
         "member_added" => {
             let membership = event
                 .membership
                 .expect("member was added but no membership is set");
+            let user = membership.user;
 
-            write!(
-                &mut message,
-                "{} added {} to organization as {}",
-                event.sender.login, membership.user.login, membership.role,
-            )
-            .unwrap();
+            ("added", user, "to", membership.role)
         }
         "member_removed" => {
             let membership = event
                 .membership
-                .expect("member was added but no membership is set");
+                .expect("member was removed but no membership is set");
+            let user = membership.user;
 
-            write!(
-                &mut message,
-                "{} removed {} from organization (was {})",
-                event.sender.login, membership.user.login, membership.role,
-            )
-            .unwrap();
+            ("removed", user, "from", membership.role)
         }
 
         // TODO maybe handle `renamed` and `deleted` actions even tho it should not happen in our case
@@ -304,6 +293,16 @@ fn handle_organization(event: OrganizationEvent) -> Option<Response> {
             error!("invalid or unsupported organization action: {}", action);
             return None;
         }
+    };
+
+    write!(&mut message, "{} {} ", event.sender.login, action).unwrap();
+    message.link(&user.login, &user.html_url);
+    write!(&mut message, " {} organization", preposition).unwrap();
+
+    match action {
+        "invited" | "added" => write!(&mut message, " as {}", role).unwrap(),
+        "removed" => write!(&mut message, " (was {})", role).unwrap(),
+        _ => unreachable!(),
     };
 
     Some(Response {
@@ -659,6 +658,7 @@ mod tests {
             sender: GitHubUser {
                 login: "test-user".to_string(),
                 id: 42,
+                html_url: Url::parse("https://github.com/test-user").unwrap(),
             },
             repository: Repository {
                 name: "test-repo".to_string(),
@@ -701,6 +701,7 @@ mod tests {
             sender: GitHubUser {
                 login: "test-user".to_string(),
                 id: 42,
+                html_url: Url::parse("https://github.com/test-user").unwrap(),
             },
             r#ref: "test-tag".to_string(),
         };
@@ -735,6 +736,7 @@ mod tests {
             sender: GitHubUser {
                 login: "test-user2".to_string(),
                 id: 420,
+                html_url: Url::parse("https://github.com/test-user").unwrap(),
             },
         };
 
@@ -751,7 +753,7 @@ mod tests {
 
         assert_eq!(
             message.html,
-            r#"<b>[📦 test-repo]</b> test-user2 forked into <a href="https://github.com/test-user2/test-repo">test-user2/test-repo</a>"#,
+            r#"<b>[📦 test-repo]</b> <a href="https://github.com/test-user">test-user2</a> forked into <a href="https://github.com/test-user2/test-repo">test-user2/test-repo</a>"#,
         );
     }
 
@@ -761,6 +763,7 @@ mod tests {
             sender: GitHubUser {
                 login: "test-user".to_string(),
                 id: 42,
+                html_url: Url::parse("https://github.com/test-user").unwrap(),
             },
             repository: Repository {
                 name: "test-repo".to_string(),
@@ -813,6 +816,7 @@ mod tests {
             sender: GitHubUser {
                 login: "test-user".to_string(),
                 id: 42,
+                html_url: Url::parse("https://github.com/test-user").unwrap(),
             },
             issue: Issue {
                 number: 42,
@@ -850,6 +854,7 @@ mod tests {
             member: GitHubUser {
                 login: "test-user".to_string(),
                 id: 42,
+                html_url: Url::parse("https://github.com/test-user").unwrap(),
             },
             team: Team {
                 name: "test-team".to_string(),
@@ -862,6 +867,7 @@ mod tests {
             sender: GitHubUser {
                 login: "test-admin".to_string(),
                 id: 4242,
+                html_url: Url::parse("https://github.com/test-user").unwrap(),
             },
         };
 
@@ -878,7 +884,7 @@ mod tests {
 
         assert_eq!(
             message.html,
-            r#"<b>[🧑 test-team]</b> test-admin added test-user to the team"#,
+            r#"<b>[🧑 test-team]</b> test-admin added <a href="https://github.com/test-user">test-user</a> to the team"#,
         );
     }
 
@@ -889,6 +895,7 @@ mod tests {
             sender: GitHubUser {
                 login: "test-admin".to_string(),
                 id: 4242,
+                html_url: Url::parse("https://github.com/test-user").unwrap(),
             },
             invitation: None,
             user: None,
@@ -897,6 +904,7 @@ mod tests {
                 user: GitHubUser {
                     login: "test-user".to_string(),
                     id: 42,
+                    html_url: Url::parse("https://github.com/test-user").unwrap(),
                 },
             }),
         };
@@ -914,7 +922,7 @@ mod tests {
 
         assert_eq!(
             message.html,
-            r#"test-admin added test-user to organization as member"#,
+            r#"test-admin added <a href="https://github.com/test-user">test-user</a> to organization as member"#,
         );
     }
 
@@ -930,6 +938,7 @@ mod tests {
             sender: GitHubUser {
                 login: "test-user".to_string(),
                 id: 42,
+                html_url: Url::parse("https://github.com/test-user").unwrap(),
             },
         };
 
@@ -956,6 +965,7 @@ mod tests {
             sender: GitHubUser {
                 login: "test-user".to_string(),
                 id: 42,
+                html_url: Url::parse("https://github.com/test-user").unwrap(),
             },
             repository: Repository {
                 name: "test-repo".to_string(),
@@ -969,6 +979,7 @@ mod tests {
                 user: GitHubUser {
                     login: "test-user".to_string(),
                     id: 42,
+                    html_url: Url::parse("https://github.com/test-user").unwrap(),
                 },
                 requested_reviewers: vec![],
                 base: PrRef {
@@ -1006,6 +1017,7 @@ mod tests {
             sender: GitHubUser {
                 login: "test-user".to_string(),
                 id: 42,
+                html_url: Url::parse("https://github.com/test-user").unwrap(),
             },
             repository: Repository {
                 name: "test-repo".to_string(),
@@ -1019,6 +1031,7 @@ mod tests {
                 user: GitHubUser {
                     login: "test-user".to_string(),
                     id: 42,
+                    html_url: Url::parse("https://github.com/test-user").unwrap(),
                 },
                 requested_reviewers: vec![],
                 base: PrRef {
@@ -1035,6 +1048,7 @@ mod tests {
                 user: GitHubUser {
                     login: "test-user".to_string(),
                     id: 42,
+                    html_url: Url::parse("https://github.com/test-user").unwrap(),
                 },
                 html_url: Url::parse("https://github.com/test-user/test-repo/whatever").unwrap(),
             },
@@ -1063,6 +1077,7 @@ mod tests {
             sender: GitHubUser {
                 login: "test-user".to_string(),
                 id: 42,
+                html_url: Url::parse("https://github.com/test-user").unwrap(),
             },
             repository: Repository {
                 name: "test-repo".to_string(),
@@ -1076,6 +1091,7 @@ mod tests {
                 user: GitHubUser {
                     login: "test-user".to_string(),
                     id: 42,
+                html_url: Url::parse("https://github.com/test-user").unwrap(),
                 },
                 requested_reviewers: vec![],
                 base: PrRef {
@@ -1125,6 +1141,7 @@ mod tests {
             sender: GitHubUser {
                 login: "test-user".to_string(),
                 id: 42,
+                html_url: Url::parse("https://github.com/test-user").unwrap(),
             },
             commits: vec![
                 Commit {
@@ -1186,6 +1203,7 @@ mod tests {
             sender: GitHubUser {
                 login: "test-user".to_string(),
                 id: 42,
+                html_url: Url::parse("https://github.com/test-user").unwrap(),
             },
             changes: None,
         };
