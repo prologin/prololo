@@ -20,6 +20,7 @@ pub enum ProloSiteEvent {
     Error(DjangoErrorPayload),
     Forum(ForumPayload),
     NewSchool(NewSchoolPayload),
+    Impersonate(ImpersonatePayload),
 }
 
 pub struct ProlositeSecret(pub String);
@@ -106,6 +107,27 @@ pub(crate) fn new_school(
         .expect("mspc channel was closed / dropped");
 }
 
+#[rocket::post(
+    "/api/webhooks/prolosite/impersonate",
+    format = "json",
+    data = "<payload>"
+)]
+pub(crate) fn impersonate(
+    _token: AuthorizationHeader,
+    payload: Json<ImpersonatePayload>,
+    sender: &State<EventSender>,
+) {
+    info!("received impersonate notice");
+    trace!("payload: {:?}", payload.0);
+
+    sender
+        .0
+        .send(Event::ProloSite(ProloSiteEvent::Impersonate(
+            payload.into_inner(),
+        )))
+        .expect("mspc channel was closed / dropped");
+}
+
 #[derive(Debug, Deserialize)]
 pub struct DjangoErrorPayload {
     pub(crate) request: Request,
@@ -137,5 +159,18 @@ pub struct ForumPayload {
 #[derive(Debug, Deserialize)]
 pub struct NewSchoolPayload {
     pub(crate) name: String,
+    pub(crate) url: Url,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ImpersonatePayload {
+    pub(crate) event: String,
+    pub(crate) hijacker: User,
+    pub(crate) hijacked: User,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct User {
+    pub(crate) username: String,
     pub(crate) url: Url,
 }

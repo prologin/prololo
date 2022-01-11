@@ -5,7 +5,7 @@ use tracing::trace;
 use crate::{
     bot::{emoji, message_builder::MessageBuilder, utils::shorten_content_length, Response},
     webhooks::{
-        prolosite::{DjangoErrorPayload, ForumPayload, NewSchoolPayload},
+        prolosite::{DjangoErrorPayload, ForumPayload, ImpersonatePayload, NewSchoolPayload},
         ProloSiteEvent,
     },
 };
@@ -16,6 +16,7 @@ pub(crate) fn handle_prolosite_event(event: ProloSiteEvent) -> anyhow::Result<Op
         ProloSiteEvent::Error(event) => handle_prolosite_error(event),
         ProloSiteEvent::Forum(event) => handle_prolosite_forum(event),
         ProloSiteEvent::NewSchool(event) => handle_prolosite_new_school(event),
+        ProloSiteEvent::Impersonate(event) => handle_prolosite_impersonate(event),
     };
 
     Ok(response)
@@ -90,9 +91,27 @@ fn handle_prolosite_new_school(event: NewSchoolPayload) -> Option<Response> {
     })
 }
 
+fn handle_prolosite_impersonate(event: ImpersonatePayload) -> Option<Response> {
+    let mut message = MessageBuilder::new();
+
+    message.tag("impersonate", Some(emoji::POLICE_CAR_LIGHT));
+
+    write!(&mut message, " ").unwrap();
+    message.link(&event.hijacker.username, &event.hijacker.url);
+    write!(&mut message, " {}ed impersonation of ", event.event).unwrap();
+    message.main_link(&event.hijacked.username, &event.hijacked.url);
+
+    Some(Response {
+        message,
+        repo: None,
+    })
+}
+
 #[cfg(test)]
 mod tests {
-    use crate::webhooks::prolosite::{Exception, Request};
+    use url::Url;
+
+    use crate::webhooks::prolosite::{Exception, Request, User};
 
     use super::*;
 
@@ -120,6 +139,34 @@ mod tests {
         assert_eq!(
             message.html,
             "<b>[🔥 django crash]</b> (prololo) GET <code>/some/route</code>: <code>ExampleException</code>"
+        );
+    }
+    #[test]
+    fn test_handle_prolosite_impersonate() {
+        let event = ImpersonatePayload {
+            event: "start".to_string(),
+            hijacker: User {
+                username: "leo".to_string(),
+                url: Url::parse("https://prologin.org/user/39194/profile").unwrap(),
+            },
+            hijacked: User {
+                username: "prologin".to_string(),
+                url: Url::parse("https://prologin.org/user/1/profile").unwrap(),
+            },
+        };
+
+        let response = handle_prolosite_impersonate(event).expect("should have a response");
+        let message = response.message;
+
+        assert!(message.url.is_some());
+
+        assert_eq!(
+            message.plain,
+            "[🚨 impersonate] leo started impersonation of prologin"
+        );
+        assert_eq!(
+            message.html,
+            r#"<b>[🚨 impersonate]</b> <a href="https://prologin.org/user/39194/profile">leo</a> started impersonation of <a href="https://prologin.org/user/1/profile">prologin</a>"#
         );
     }
 }
