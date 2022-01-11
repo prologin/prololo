@@ -140,7 +140,10 @@ fn handle_issue_comment(event: IssueCommentEvent) -> Option<Response> {
         // too verbose, don't log that
         "edited" | "deleted" => return None,
 
-        _ => return None, // FIXME log error
+        _ => {
+            error!("invalid or unsupported issue comment action: {}", action);
+            return None;
+        }
     }
 
     Some(Response {
