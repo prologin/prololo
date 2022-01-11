@@ -141,6 +141,50 @@ mod tests {
             "<b>[🔥 django crash]</b> (prololo) GET <code>/some/route</code>: <code>ExampleException</code>"
         );
     }
+
+    #[test]
+    fn test_handle_prolosite_forum() {
+        let event = ForumPayload {
+            username: "prololo".to_string(),
+            forum: "Forum".to_string(),
+            title: "Post".to_string(),
+            url: Url::parse("https://prologin.org/forum/post/Post/1").unwrap(),
+        };
+
+        let response = handle_prolosite_forum(event).expect("should have a response");
+        let message = response.message;
+
+        assert!(message.url.is_some());
+
+        assert_eq!(
+            message.plain,
+            "[💬 forum] prololo created new thread in Forum: Post"
+        );
+        assert_eq!(
+            message.html,
+            r#"<b>[💬 forum]</b> prololo created <a href="https://prologin.org/forum/post/Post/1">new thread</a> in Forum: Post"#
+        );
+    }
+
+    #[test]
+    fn test_handle_prolosite_new_school() {
+        let event = NewSchoolPayload {
+            name: "proloschool".to_string(),
+            url: Url::parse("https://prologin.org/admin/schools/school/3/change/").unwrap(),
+        };
+
+        let response = handle_prolosite_new_school(event).expect("should have a response");
+        let message = response.message;
+
+        assert!(message.url.is_some());
+
+        assert_eq!(message.plain, "[🎓 school] New school added: proloschool");
+        assert_eq!(
+            message.html,
+            r#"<b>[🎓 school]</b> New school added: <a href="https://prologin.org/admin/schools/school/3/change/">proloschool</a>"#
+        );
+    }
+
     #[test]
     fn test_handle_prolosite_impersonate() {
         let event = ImpersonatePayload {
