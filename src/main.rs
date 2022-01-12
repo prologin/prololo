@@ -15,10 +15,10 @@ use config::ProloloConfig;
 
 mod webhooks;
 use webhooks::{
-    github::GitHubSecret,
+    generic::generic,
     github_webhook,
-    prolosite::{django, forum, impersonate, new_school, ProlositeSecret},
-    EventSender,
+    prolosite::{django, forum, impersonate, new_school},
+    Config, EventSender,
 };
 
 #[derive(Parser)]
@@ -40,21 +40,25 @@ async fn main() -> anyhow::Result<()> {
         .context("couldn't parse config file")?;
 
     let (sender, receiver) = unbounded_channel();
-    let github_secret = config.github_secret.clone();
-    let prolosite_secret = config.prolosite_secret.clone();
 
-    let prololo = Prololo::new(config).context("failed to create prololo bot")?;
+    let prololo = Prololo::new(config.clone()).context("failed to create prololo bot")?;
     prololo.init().await.context("failed to init prololo bot")?;
     tokio::spawn(async move { prololo.run(receiver).await });
 
     let rocket = rocket::build()
         .mount(
             "/",
-            routes![github_webhook, django, forum, new_school, impersonate],
+            routes![
+                github_webhook,
+                django,
+                forum,
+                new_school,
+                impersonate,
+                generic
+            ],
         )
         .manage(EventSender(sender))
-        .manage(GitHubSecret(github_secret))
-        .manage(ProlositeSecret(prolosite_secret));
+        .manage(Config(config));
     rocket.launch().await.map_err(|err| anyhow::anyhow!(err))
 }
 

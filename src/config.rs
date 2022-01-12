@@ -20,6 +20,8 @@ pub struct ProloloConfig {
     pub matrix_rooms: HashMap<String, RoomConfig>,
     /// Mappings from all repos matching a certain regex, to a specific Matrix room
     pub destinations: Vec<Destination>,
+    /// Generic endpoints
+    pub generic_endpoints: Option<HashMap<String, GenericEndpoint>>,
     /// Secret used to verify HMAC signature of GitHub webhooks
     pub github_secret: String,
     /// Secret token used in Authorization header for Prologin site hooks
@@ -42,6 +44,14 @@ pub struct Destination {
     /// The regex used to match some repos to this destination
     #[serde(with = "serde_regex")]
     pub regex: Regex,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct GenericEndpoint {
+    /// The room name as used in [`ProloloConfig::matrix_rooms`]
+    pub room: String,
+    /// The secret used to authenticate requests to this endpoint
+    pub secret: String,
 }
 
 impl ProloloConfig {
