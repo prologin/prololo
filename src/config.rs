@@ -20,8 +20,9 @@ pub struct ProloloConfig {
     pub matrix_rooms: HashMap<String, RoomConfig>,
     /// Mappings from all repos matching a certain regex, to a specific Matrix room
     pub destinations: Vec<Destination>,
+    #[serde(default)]
     /// Generic endpoints
-    pub generic_endpoints: Option<HashMap<String, GenericEndpoint>>,
+    pub generic_endpoints: HashMap<String, GenericEndpoint>,
     /// Secret used to verify HMAC signature of GitHub webhooks
     pub github_secret: String,
     /// Secret token used in Authorization header for Prologin site hooks

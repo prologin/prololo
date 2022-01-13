@@ -6,7 +6,7 @@ use rocket::{
 };
 use tokio::sync::mpsc::UnboundedSender;
 
-use tracing::{debug, trace};
+use tracing::trace;
 
 pub mod github;
 pub use github::{github_webhook, GitHubEvent};
@@ -18,8 +18,6 @@ pub mod generic;
 pub(crate) use generic::GenericEvent;
 
 use crate::config::ProloloConfig;
-
-pub struct Config(pub ProloloConfig);
 
 pub struct EventSender(pub UnboundedSender<Event>);
 
@@ -49,31 +47,21 @@ impl<'r> FromRequest<'r> for AuthorizationHeader<'r> {
             ));
         }
         let authorization = authorization[0];
-        debug!("{:?}", request);
-        let prololo_config = &request.guard::<&State<Config>>().await.unwrap().0;
+        let prololo_config = request.guard::<&State<ProloloConfig>>().await.unwrap();
 
         let endpoint_segments: Vec<&str> = request.uri().path().segments().skip(2).collect();
         let auth_secret = match endpoint_segments[0] {
             "prolosite" => Some(prololo_config.prolosite_secret.as_str()),
-            "generic" => match &prololo_config.generic_endpoints {
-                Some(generic_endpoints) => {
-                    let secret = match generic_endpoints.get(endpoint_segments[1]) {
-                        Some(endpoint) => endpoint.secret.as_str(),
-                        None => {
-                            return Outcome::Failure((
-                                Status::NotFound,
-                                anyhow!("no endpoint named '{}'", endpoint_segments[1]),
-                            ))
-                        }
-                    };
-
-                    Some(secret)
-                }
+            "generic" => match &prololo_config.generic_endpoints.get(endpoint_segments[1]) {
+                Some(endpoint) => Some(endpoint.secret.as_str()),
                 None => {
-                    return Outcome::Failure((Status::NotFound, anyhow!("no endpoint configured")));
+                    return Outcome::Failure((
+                        Status::NotFound,
+                        anyhow!("no endpoint named '{}'", endpoint_segments[1]),
+                    ))
                 }
             },
-            _ => None,
+            _ => unreachable!(),
         };
 
         if Some(authorization) != auth_secret {

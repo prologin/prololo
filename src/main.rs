@@ -18,7 +18,7 @@ use webhooks::{
     generic::generic,
     github_webhook,
     prolosite::{django, forum, impersonate, new_school},
-    Config, EventSender,
+    EventSender,
 };
 
 #[derive(Parser)]
@@ -58,7 +58,7 @@ async fn main() -> anyhow::Result<()> {
             ],
         )
         .manage(EventSender(sender))
-        .manage(Config(config));
+        .manage(config);
     rocket.launch().await.map_err(|err| anyhow::anyhow!(err))
 }
 
