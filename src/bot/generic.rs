@@ -21,7 +21,9 @@ pub(crate) fn handle_generic_event(event: GenericEvent) -> anyhow::Result<Option
     write!(message, "{}", event.message).unwrap();
 
     if let Some(url) = event.url {
-        write!(message, " ({})", url).unwrap();
+        write!(message, " (").unwrap();
+        message.main_link(url.as_str(), &url);
+        write!(message, ")").unwrap();
     }
 
     Ok(Some(Response {
@@ -58,7 +60,7 @@ mod tests {
 
         assert_eq!(
             message.html,
-            "<b>[generic]</b> Hello World! (https://prologin.org/)"
+            r#"<b>[generic]</b> Hello World! (<a href="https://prologin.org/">https://prologin.org/</a>)"#
         );
     }
 }
