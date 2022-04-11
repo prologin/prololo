@@ -3,7 +3,7 @@ use serde::Deserialize;
 use tracing::{debug, trace};
 use url::Url;
 
-use crate::webhooks::{AuthorizationHeader, Event, EventSender};
+use crate::webhooks::{Event, EventSender, GenericAuthorize};
 
 #[derive(Debug)]
 pub struct GenericEvent(pub GenericPayload);
@@ -15,7 +15,7 @@ pub struct GenericEvent(pub GenericPayload);
 )]
 pub(crate) fn generic(
     endpoint: String,
-    _token: AuthorizationHeader,
+    _token: GenericAuthorize,
     payload: Json<GenericPayload>,
     sender: &State<EventSender>,
 ) {

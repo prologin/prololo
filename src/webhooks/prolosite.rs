@@ -5,7 +5,7 @@ use serde::Deserialize;
 use tracing::{info, trace};
 use url::Url;
 
-use crate::webhooks::{AuthorizationHeader, Event, EventSender};
+use crate::webhooks::{Event, EventSender, ProlositeAuthorize};
 
 #[derive(Debug)]
 pub enum ProloSiteEvent {
@@ -17,7 +17,7 @@ pub enum ProloSiteEvent {
 
 #[rocket::post("/api/webhooks/prolosite/django", format = "json", data = "<payload>")]
 pub(crate) fn django(
-    _token: AuthorizationHeader,
+    _token: ProlositeAuthorize,
     payload: Json<DjangoErrorPayload>,
     sender: &State<EventSender>,
 ) {
@@ -33,7 +33,7 @@ pub(crate) fn django(
 
 #[rocket::post("/api/webhooks/prolosite/forum", format = "json", data = "<payload>")]
 pub(crate) fn forum(
-    _token: AuthorizationHeader,
+    _token: ProlositeAuthorize,
     payload: Json<ForumPayload>,
     sender: &State<EventSender>,
 ) {
@@ -54,7 +54,7 @@ pub(crate) fn forum(
     data = "<payload>"
 )]
 pub(crate) fn new_school(
-    _token: AuthorizationHeader,
+    _token: ProlositeAuthorize,
     payload: Json<NewSchoolPayload>,
     sender: &State<EventSender>,
 ) {
@@ -75,7 +75,7 @@ pub(crate) fn new_school(
     data = "<payload>"
 )]
 pub(crate) fn impersonate(
-    _token: AuthorizationHeader,
+    _token: ProlositeAuthorize,
     payload: Json<ImpersonatePayload>,
     sender: &State<EventSender>,
 ) {
