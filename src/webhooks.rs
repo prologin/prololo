@@ -98,8 +98,7 @@ impl<'r> FromRequest<'r> for GenericAuthorize<'r> {
                 .uri()
                 .path()
                 .segments()
-                .skip(3)
-                .nth(0)
+                .nth(3)
                 .expect("should never happen");
             let auth_secret = match &prololo_config.generic_endpoints.get(endpoint) {
                 Some(endpoint) => endpoint.secret.as_str(),
