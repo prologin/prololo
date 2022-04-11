@@ -1,7 +1,6 @@
 use std::fmt::Write;
 
 use tracing::{error, info};
-use url::Url;
 
 use crate::{
     bot::{emoji, message_builder::MessageBuilder, utils::shorten_content, Response},
@@ -545,12 +544,11 @@ fn handle_push(event: PushEvent) -> Option<Response> {
 
     write!(&mut message, " {} {}pushed ", pusher, force).unwrap();
 
-    let url: &Url;
     let mut text = String::new();
 
-    if commits.len() == 1 {
+    let url = if commits.len() == 1 {
         write!(text, "{}", hash).unwrap();
-        url = &head.url;
+        &head.url
     } else {
         write!(text, "{} commits", commits.len()).unwrap();
 
@@ -561,8 +559,9 @@ fn handle_push(event: PushEvent) -> Option<Response> {
 
         write!(text, " including {}", hash).unwrap();
 
-        url = &event.compare;
-    }
+        &event.compare
+    };
+
     message.main_link(&text, url);
 
     let branch = event
@@ -649,6 +648,8 @@ mod tests {
         Comment, Commit, CommitCommentEvent, ForkEvent, GitHubUser, Issue, MembershipEvent,
         OrganizationMembership, PrRef, PullRequest, Repository, Review, Team,
     };
+
+    use url::Url;
 
     use super::*;
 

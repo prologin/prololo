@@ -1,19 +1,11 @@
 use std::path::PathBuf;
 
-use anyhow::anyhow;
-use rocket::{
-    http::Status,
-    request::{FromRequest, Outcome},
-    serde::json::Json,
-    State,
-};
+use rocket::{serde::json::Json, State};
 use serde::Deserialize;
 use tracing::{info, trace};
 use url::Url;
 
-use crate::webhooks::{Event, EventSender};
-
-const AUTHORIZATION: &str = "Authorization";
+use crate::webhooks::{Event, EventSender, ProlositeAuthorize};
 
 #[derive(Debug)]
 pub enum ProloSiteEvent {
@@ -23,39 +15,9 @@ pub enum ProloSiteEvent {
     Impersonate(ImpersonatePayload),
 }
 
-pub struct ProlositeSecret(pub String);
-
-pub(crate) struct AuthorizationHeader<'r>(&'r str);
-
-#[rocket::async_trait]
-impl<'r> FromRequest<'r> for AuthorizationHeader<'r> {
-    type Error = anyhow::Error;
-
-    async fn from_request(request: &'r rocket::Request<'_>) -> Outcome<Self, Self::Error> {
-        let authorization = request.headers().get(AUTHORIZATION).collect::<Vec<_>>();
-        if authorization.len() != 1 {
-            trace!("couldn't locate {} header", AUTHORIZATION);
-            return Outcome::Failure((
-                Status::BadRequest,
-                anyhow!("request needs an authorization header"),
-            ));
-        }
-        let authorization = authorization[0];
-        let auth_secret = &request.guard::<&State<ProlositeSecret>>().await.unwrap().0;
-
-        if authorization != auth_secret {
-            trace!("secret validation failed, stopping here...");
-            return Outcome::Failure((Status::BadRequest, anyhow!("secret doesn't match")));
-        }
-
-        trace!("validated Prolosite request");
-        Outcome::Success(AuthorizationHeader(authorization))
-    }
-}
-
 #[rocket::post("/api/webhooks/prolosite/django", format = "json", data = "<payload>")]
 pub(crate) fn django(
-    _token: AuthorizationHeader,
+    _token: ProlositeAuthorize,
     payload: Json<DjangoErrorPayload>,
     sender: &State<EventSender>,
 ) {
@@ -71,7 +33,7 @@ pub(crate) fn django(
 
 #[rocket::post("/api/webhooks/prolosite/forum", format = "json", data = "<payload>")]
 pub(crate) fn forum(
-    _token: AuthorizationHeader,
+    _token: ProlositeAuthorize,
     payload: Json<ForumPayload>,
     sender: &State<EventSender>,
 ) {
@@ -92,7 +54,7 @@ pub(crate) fn forum(
     data = "<payload>"
 )]
 pub(crate) fn new_school(
-    _token: AuthorizationHeader,
+    _token: ProlositeAuthorize,
     payload: Json<NewSchoolPayload>,
     sender: &State<EventSender>,
 ) {
@@ -113,7 +75,7 @@ pub(crate) fn new_school(
     data = "<payload>"
 )]
 pub(crate) fn impersonate(
-    _token: AuthorizationHeader,
+    _token: ProlositeAuthorize,
     payload: Json<ImpersonatePayload>,
     sender: &State<EventSender>,
 ) {

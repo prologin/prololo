@@ -8,7 +8,7 @@ use rocket::{
 };
 use tracing::trace;
 
-use crate::webhooks::github::GitHubSecret;
+use crate::config::ProloloConfig;
 
 const X_GITHUB_SIGNATURE: &str = "X-Hub-Signature-256";
 
@@ -90,9 +90,13 @@ impl<'r> FromData<'r> for SignedGitHubPayload {
         };
 
         let signature = signatures[0];
-        let secret = request.guard::<&State<GitHubSecret>>().await.unwrap();
+        let secret = &request
+            .guard::<&State<ProloloConfig>>()
+            .await
+            .unwrap()
+            .github_secret;
 
-        if !validate_signature(&secret.0, signature, &content) {
+        if !validate_signature(secret, signature, &content) {
             trace!("signature validation failed, stopping here...");
             return Outcome::Failure((Status::BadRequest, anyhow!("couldn't verify signature")));
         }

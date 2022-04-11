@@ -11,8 +11,6 @@ use crate::webhooks::{Event, EventSender};
 
 pub const X_GITHUB_EVENT: &str = "X-GitHub-Event";
 
-pub struct GitHubSecret(pub String);
-
 #[rocket::post("/api/webhooks/github", data = "<payload>")]
 pub fn github_webhook(
     event: GitHubEventType,
