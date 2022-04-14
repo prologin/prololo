@@ -1,0 +1,24 @@
+---
+matrix_homeserver: https://matrix.prologin.org
+
+matrix_username: prololo
+matrix_password: "alarsyoleplusbeau"
+
+matrix_state_dir: /var/prololo
+
+matrix_rooms:
+  super-room:
+    id: "!xBbVTMAykIXvXSXOOe:matrix.prologin.org"
+
+destinations:
+  - room: "super-room"
+    regex: ".*"
+
+generic_endpoints:
+  new-endpoint:
+    room: "super-room"
+    secret: "what_a_really_strong_secret_for_my_endpoint"
+
+github_secret: "I_have_no_secret_for_you"
+
+prolosite_secret: "prololo_is_my_only_love"
